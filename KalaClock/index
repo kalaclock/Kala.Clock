@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="shortcut icon"
+      href="assets/looks/Img/Icons/Logoicon.png"
+      type="image/x-icon"
+    />
+    <title>Kala.Clock — Dashboard Kontrol IoT Clock &amp; Running Text</title>
+
+    <!-- Google Fonts: Inter with font-weight 700 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Library Paho MQTT untuk WebSockets -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+
+    <!-- Style CSS terpisah -->
+    <link rel="stylesheet" href="assets/looks/css/style.css" />
+  </head>
+
+  <body>
+    <!-- =================================
+         MOBILE TOP BAR (Hanya Tampil di Layar HP / Mobile)
+    ================================= -->
+    <header class="mobile-navbar" id="mobileNavbar">
+      <div class="mobile-brand">
+        <!-- Logo normal Kala.Clock -->
+        <img
+          src="assets/looks/Img/Icons/Logo.png"
+          alt="Kala.Clock Logo"
+          class="mobile-logo-img"
+        />
+        <div class="mobile-brand-info">
+          <span class="mobile-brand-title">Kala.Clock</span>
+          <span class="mobile-brand-sub">IoT Controller</span>
+        </div>
+      </div>
+
+      <div class="mobile-nav-actions">
+        <div class="mobile-status-pill" title="Status Koneksi Sistem">
+          <span class="indicator-dot" id="mobileSidebarDot"></span>
+          <span id="mobileStatusText" class="mobile-status-label">Siap</span>
+        </div>
+        <button
+          type="button"
+          class="mobile-menu-btn"
+          id="mobileMenuBtn"
+          aria-label="Buka Menu Navigasi"
+          aria-expanded="false"
+        >
+          <span class="hamburger-bar"></span>
+          <span class="hamburger-bar"></span>
+          <span class="hamburger-bar"></span>
+        </button>
+      </div>
+    </header>
+
+    <!-- BACKDROP OVERLAY UNTUK MOBILE DRAWER -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- =================================
+         CONTAINER 1 (SIDEBAR + MAIN)
+    ================================= -->
+    <div class="container1">
+      <!-- SIDEBAR -->
+      <aside class="sidebar" id="mainSidebar">
+        <!-- Tombol Tutup Mobile Drawer (Hanya di Layar Mobile) -->
+        <button
+          type="button"
+          class="sidebar-close-btn"
+          id="sidebarCloseBtn"
+          aria-label="Tutup Menu"
+        >
+          ✕
+        </button>
+
+        <!-- Logo Kala.Clock di tengah sidebar, align top center, padding top 40px -->
+        <div class="logo-wrapper">
+          <img
+            src="assets/looks/Img/Icons/Logo.png"
+            alt="Kala.Clock Logo"
+            class="sidebar-logo"
+          />
+        </div>
+
+        <div class="sidebar-brand-title">
+          <h2>Kala.Clock</h2>
+          <span class="badge-iot">IoT Controller</span>
+        </div>
+
+        <!-- NAVIGASI SIDEBAR: 3 Item Bersih (Live Display, Dashboard, Panduan) -->
+        <nav>
+          <a
+            href="#preview-section"
+            class="nav-link active"
+            data-section="preview-section"
+          >
+            <span class="nav-icon"></span>
+            <span>Live Display</span>
+          </a>
+          <a href="#dashboard" class="nav-link" data-section="dashboard">
+            <span class="nav-icon"></span>
+            <span>Dashboard</span>
+          </a>
+          <a href="#panduan" class="nav-link" data-section="panduan">
+            <span class="nav-icon"></span>
+            <span>Panduan</span>
+          </a>
+        </nav>
+
+        <!-- SIDEBAR FOOTER / STATUS MINI -->
+        <div class="sidebar-footer">
+          <div class="system-status-indicator">
+            <span class="indicator-dot" id="sidebarDot"></span>
+            <span id="sidebarStatusText">Sistem Siap</span>
+          </div>
+          <p class="sidebar-version">&copy; 2026 Kala.Clock</p>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT -->
+      <main class="main">
+        <!-- HEADER -->
+        <header class="header">
+          <div class="header-text">
+            <h1>Dashboard Kala.Clock</h1>
+            <p>Pengaturan Running Text &amp; Jam Digital Berbasis IoT</p>
+          </div>
+          <div class="header-actions">
+            <button
+              type="button"
+              class="btn-sync-time"
+              onclick="sinkronWaktu()"
+              title="Sinkronisasi waktu lokal perangkat ke modul jam IoT"
+            >
+              Sinkron Waktu Otomatis
+            </button>
+            <button
+              type="button"
+              class="btn-refresh-conn"
+              onclick="
+                connectMQTT();
+                cekDatabase();
+              "
+              title="Perbarui koneksi broker MQTT dan status database"
+            >
+              Refresh Koneksi
+            </button>
+          </div>
+        </header>
+
+        <!-- =================================
+             1. LIVE VIRTUAL LED CLOCK PREVIEW
+        ================================= -->
+        <section class="preview-panel" id="preview-section">
+          <div class="preview-header">
+            <div class="preview-title-box">
+              <span class="preview-dot"></span>
+              <h3>Simulasi Layar Panel LED (P10)</h3>
+            </div>
+            <div class="preview-meta">
+              <span id="previewModeLabel" class="preview-mode-tag"
+                >Mode: Jam + Teks Bergantian</span
+              >
+              <span class="preview-res">32x16 P10</span>
+            </div>
+          </div>
+
+          <!-- LAYAR SIMULASI LED MATRIX -->
+          <div class="led-screen-outer">
+            <div class="led-screen-bezel">
+              <div class="led-screen-display" id="ledDisplay">
+                <!-- Clock Digital Section -->
+                <div class="led-clock-box">
+                  <div class="led-time" id="virtualClock">12:00:00</div>
+                  <div class="led-date" id="virtualDate">
+                    Selasa, 22 Sep 2026
+                  </div>
+                </div>
+                <!-- Divider strip -->
+                <div class="led-divider"></div>
+                <!-- Running text marquee ticker -->
+                <div class="led-ticker-wrapper">
+                  <div class="led-ticker-text" id="virtualTicker">
+                    Selamat Datang di Kala.Clock IoT Smart Display — Silakan
+                    Masukkan Pesan Anda
+                  </div>
+                </div>
+              </div>
+              <div class="led-matrix-overlay" id="ledDimmer"></div>
+            </div>
+          </div>
+
+          <div class="preview-footer">
+            <div class="preview-indicator">
+              <span class="badge-dot-live"></span>
+              <span class="preview-live-label">LIVE PREVIEW</span>
+            </div>
+            <div class="preview-stats">
+              <span
+                >Kecerahan:
+                <strong id="previewBrightnessText">100 (39%)</strong></span
+              >
+              <span class="stats-sep">•</span>
+              <span
+                >Kecepatan: <strong id="previewSpeedText">40 ms</strong></span
+              >
+              <span class="stats-sep">•</span>
+              <span>Zona: <strong id="previewTimezoneText">UTC+8</strong></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- NOTIFIKASI STATUS PENGIRIMAN -->
+        <div
+          id="pesan"
+          class="pesan-alert"
+          role="status"
+          aria-live="polite"
+        ></div>
+
+        <!-- =================================
+             2. DASHBOARD (SEMUA KONTROL PERANGKAT & PENGATURAN)
+        ================================= -->
+        <section class="dashboard-section" id="dashboard">
+          <div class="container2">
+            <!-- CARD 1: KONEKSI & STATUS PERANGKAT -->
+            <div class="card" id="card-perangkat">
+              <div class="card-header-icon">
+                <span class="card-icon">📡</span>
+                <h3>Koneksi Perangkat</h3>
+              </div>
+              <p class="card-desc">
+                Monitoring koneksi Cloud MQTT Broker &amp; Server Database.
+              </p>
+
+              <div class="device-details">
+                <div class="device-row">
+                  <span class="device-label">Nama Modul:</span>
+                  <span class="device-val">Kala.Clock Master Node</span>
+                </div>
+                <div class="device-row">
+                  <span class="device-label">Topik Data:</span>
+                  <span class="device-val topic-code" id="topicLabel"
+                    >KC00</span
+                  >
+                </div>
+              </div>
+
+              <!-- STATUS BADGES -->
+              <div class="status-stack">
+                <div id="statusMQTT" class="status-box offline">
+                  BROKER: OFFLINE
+                </div>
+                <div id="statusAlat" class="status-box offline">
+                  ALAT P10: OFFLINE
+                </div>
+                <div id="statusDB" class="status-box offline">
+                  DATABASE MYSQL: MENGHUBUNGKAN...
+                </div>
+              </div>
+
+              <button type="button" class="btn-card" onclick="connectMQTT()">
+                Uji Sambungan Broker
+              </button>
+            </div>
+
+            <!-- CARD 2: KECERAHAN LAYAR & SAKLAR DAYA -->
+            <div class="card" id="card-kecerahan">
+              <div class="card-header-icon">
+                <span class="card-icon"></span>
+                <h3>Kecerahan &amp; Daya Layar</h3>
+              </div>
+              <p class="card-desc">
+                Atur intensitas cahaya panel atau aktifkan saklar daya layar.
+              </p>
+
+              <!-- CUSTOM SLIDE/SWIPE SWITCH UNTUK DAYA LAYAR (OFF = 0, ON = DEFAULT 100) -->
+              <div class="power-switch-container">
+                <div class="power-switch-label">
+                  <span class="power-title">Daya Panel LED:</span>
+                  <span class="power-state-badge" id="powerStateBadge"
+                    >AKTIF (ON)</span
+                  >
+                </div>
+                <!-- SAKLAR SLIDE SESUAI SPESIFIKASI WARNA & OUTLINE USER -->
+                <button
+                  type="button"
+                  class="custom-slide-switch active"
+                  id="powerSlideSwitch"
+                  onclick="togglePowerSwitch()"
+                  role="switch"
+                  aria-checked="true"
+                  title="Klik atau geser untuk mematikan/menyalakan layar LED"
+                >
+                  <span class="switch-dot"></span>
+                </button>
+              </div>
+
+              <div class="slider-control-group">
+                <div class="slider-info">
+                  <label for="inputBrightness" class="form-label"
+                    >Tingkat Kecerahan (0 - 255):</label
+                  >
+                  <span class="slider-badge" id="badgeBrightness">150</span>
+                </div>
+                <input
+                  type="range"
+                  class="form-range"
+                  id="inputBrightness"
+                  min="0"
+                  max="255"
+                  value="100"
+                  oninput="updateBrightnessFromSlider(this.value)"
+                />
+              </div>
+
+              <!-- Quick Presets Responsif (Anti-Overflow Tablet) -->
+              <div class="preset-buttons">
+                <button
+                  type="button"
+                  class="btn-preset"
+                  onclick="setBrightnessPreset(15)"
+                >
+                  Redup (15)
+                </button>
+                <button
+                  type="button"
+                  class="btn-preset"
+                  onclick="setBrightnessPreset(80)"
+                >
+                  Sedang (80)
+                </button>
+                <button
+                  type="button"
+                  class="btn-preset"
+                  onclick="setBrightnessPreset(200)"
+                >
+                  Terang (200)
+                </button>
+              </div>
+
+              <button
+                type="button"
+                class="btn-card"
+                onclick="terapkanKecerahanLangsung()"
+              >
+                Atur Kecerahan
+              </button>
+            </div>
+
+            <!-- CARD 3: PENGATURAN JAM IOT, RTC & ZONA WAKTU -->
+            <div class="card" id="card-jam">
+              <div class="card-header-icon">
+                <span class="card-icon"></span>
+                <h3>Pengaturan Jam IoT &amp; RTC</h3>
+              </div>
+              <p class="card-desc">
+                Sinkronisasi RTC internal dan penyesuaian zona waktu global.
+              </p>
+
+              <div class="clock-quick-display">
+                <span class="clock-display-val" id="liveClockCard"
+                  >12:00:00</span
+                >
+                <span class="clock-timezone" id="liveTimezoneLabel"
+                  >WITA (UTC+8)</span
+                >
+              </div>
+
+              <!-- INPUT ZONA WAKTU (UTC-12 s/d UTC+12) -->
+              <div class="form-group mb-2">
+                <div class="slider-info">
+                  <label for="inputTimezone" class="form-label"
+                    >Zona Waktu (UTC-12 s/d UTC+12):</label
+                  >
+                  <span class="slider-badge" id="badgeTimezone">UTC+8</span>
+                </div>
+                <div class="timezone-input-wrap">
+                  <input
+                    type="number"
+                    class="form-control timezone-num-input"
+                    id="inputTimezone"
+                    min="-12"
+                    max="12"
+                    value="8"
+                    step="1"
+                    oninput="updateTimezoneFromInput(this.value)"
+                  />
+                  <div class="timezone-quick-pills">
+                    <button
+                      type="button"
+                      class="btn-tz-pill"
+                      onclick="setTimezonePreset(7)"
+                    >
+                      WIB (+7)
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-tz-pill active"
+                      onclick="setTimezonePreset(8)"
+                    >
+                      WITA (+8)
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-tz-pill"
+                      onclick="setTimezonePreset(9)"
+                    >
+                      WIT (+9)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- INPUT WAKTU MANUAL RTC INTUITIF -->
+              <div class="form-group mb-2">
+                <label class="form-label">Setel Waktu RTC Manual:</label>
+                <div class="manual-time-grid">
+                  <input
+                    type="time"
+                    class="form-control time-input-field"
+                    id="inputManualTime"
+                    step="1"
+                  />
+                  <input
+                    type="date"
+                    class="form-control date-input-field"
+                    id="inputManualDate"
+                  />
+                </div>
+              </div>
+
+              <div class="clock-options">
+                <label class="checkbox-option">
+                  <input
+                    type="checkbox"
+                    id="check24h"
+                    checked
+                    onchange="toggleTimeFormat()"
+                  />
+                  <span>Format 24 Jam (Military)</span>
+                </label>
+                <label class="checkbox-option">
+                  <input
+                    type="checkbox"
+                    id="checkDetik"
+                    checked
+                    onchange="toggleDetikDisplay()"
+                  />
+                  <span>Tampilkan Detik Berkedip</span>
+                </label>
+                <label class="checkbox-option">
+                  <input
+                    type="checkbox"
+                    id="checkTanggal"
+                    checked
+                    onchange="toggleTanggalDisplay()"
+                  />
+                  <span>Tampilkan Hari &amp; Tanggal</span>
+                </label>
+              </div>
+
+              <button
+                type="button"
+                class="btn-card"
+                onclick="terapkanWaktuManual()"
+              >
+                Terapkan Waktu ke RTC
+              </button>
+            </div>
+
+            <!-- CARD 4: TAMPILAN PESAN & RUNNING TEXT -->
+            <div class="card" id="card-runningtext">
+              <div class="card-header-icon">
+                <span class="card-icon"></span>
+                <h3>Tampilan Running Text</h3>
+              </div>
+              <p class="card-desc">
+                Edit teks berjalan, animasi scroll, dan mode tampilan panel.
+              </p>
+
+              <form id="formP10" onsubmit="event.preventDefault()">
+                <div class="form-group mb-2">
+                  <label for="inputTeks" class="form-label"
+                    >Pesan Teks Berjalan:</label
+                  >
+                  <textarea
+                    class="form-control"
+                    id="inputTeks"
+                    rows="2"
+                    placeholder="Ketik teks pesan running text di sini..."
+                    oninput="updateTickerPreview(this.value)"
+                    required
+                  >
+Selamat Datang di Kala.Clock IoT Smart Display — Silakan Masukkan Pesan Anda</textarea
+                  >
+                </div>
+
+                <div class="slider-control-group mb-2">
+                  <div class="slider-info">
+                    <label for="inputSpeed" class="form-label"
+                      >Kecepatan Scroll:</label
+                    >
+                    <span class="slider-badge" id="badgeSpeed">40 ms</span>
+                  </div>
+                  <input
+                    type="range"
+                    class="form-range"
+                    id="inputSpeed"
+                    min="5"
+                    max="100"
+                    value="40"
+                    oninput="updateSpeedFromSlider(this.value)"
+                  />
+                </div>
+
+                <div class="form-group mb-3">
+                  <label for="inputMode" class="form-label"
+                    >Mode Tampilan:</label
+                  >
+                  <select
+                    class="form-select"
+                    id="inputMode"
+                    onchange="updateModePreview(this.value)"
+                  >
+                    <option value="1">1 — Berjalan Kiri (Scroll Ticker)</option>
+                    <option value="2">2 — Diam di Tengah (Statis)</option>
+                    <option value="3">
+                      3 — Berjalan Kanan (Reverse Scroll)
+                    </option>
+                    <option value="4" selected>
+                      4 — Jam Digital + Teks Bergantian
+                    </option>
+                  </select>
+                </div>
+              </form>
+
+              <button type="button" class="btn-card" onclick="fokusInputTeks()">
+                Edit Tampilan
+              </button>
+            </div>
+          </div>
+
+          <!-- PRIMARY ACTION DOCK (KIRIM REAL-TIME MQTT) -->
+          <div class="action-dock">
+            <div class="action-dock-inner">
+              <div class="action-info">
+                <h4>Kirim Konfigurasi ke Jam IoT</h4>
+                <p>
+                  Perubahan akan langsung diteruskan ke Panel P10 secara
+                  Real-Time via MQTT dan disimpan ke MySQL &amp; Flash RTC.
+                </p>
+              </div>
+              <div class="action-buttons">
+                <button
+                  type="button"
+                  class="btn-send-main"
+                  onclick="kirimData()"
+                >
+                  KIRIM REAL-TIME
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =================================
+             3. PANDUAN SECTION
+        ================================= -->
+        <section class="card panduan-card" id="panduan">
+          <h3>Panduan Penggunaan Kala.Clock</h3>
+          <div class="panduan-grid">
+            <div class="panduan-item">
+              <div class="panduan-num">1</div>
+              <div class="panduan-content">
+                <strong>Koneksi Broker &amp; Alat</strong>
+                <p>
+                  Pastikan status BROKER berwarna HIJAU (Online). Panel P10 akan
+                  terhubung secara otomatis ke topik MQTT yang ditentukan.
+                </p>
+              </div>
+            </div>
+            <div class="panduan-item">
+              <div class="panduan-num">2</div>
+              <div class="panduan-content">
+                <strong>Atur Daya, Kecerahan &amp; Zona Waktu</strong>
+                <p>
+                  Gunakan saklar geser untuk mematikan/menyalakan layar,
+                  sesuaikan zona waktu UTC-12 s/d UTC+12, dan sinkronkan waktu
+                  RTC.
+                </p>
+              </div>
+            </div>
+            <div class="panduan-item">
+              <div class="panduan-num">3</div>
+              <div class="panduan-content">
+                <strong>Kirim Real-Time</strong>
+                <p>
+                  Tekan tombol <strong>"KIRIM REAL-TIME"</strong>. Pengaturan
+                  akan terkirim instan tanpa reload halaman dan disimpan
+                  otomatis.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Script JavaScript terpisah -->
+    <script src="assets/js/script.js"></script>
+  </body>
+</html>
