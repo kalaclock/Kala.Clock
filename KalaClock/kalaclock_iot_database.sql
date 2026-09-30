@@ -12,13 +12,11 @@ USE `kalaclock_iot_database`;
 DROP TABLE IF EXISTS `jam`;
 CREATE TABLE `jam` (
   `id_jam` int NOT NULL AUTO_INCREMENT,
-  `sn_jam` varchar(50) NOT NULL,
   `nama_jam` varchar(100) DEFAULT 'Kala.Clock Model 1',
   `status` enum('online','offline') DEFAULT 'offline',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `id_pengguna` int NOT NULL,
   PRIMARY KEY (`id_jam`),
-  UNIQUE KEY `sn_jam` (`sn_jam`),
   KEY `id_pengguna` (`id_pengguna`),
   CONSTRAINT `id_pengguna` FOREIGN KEY (`id_pengguna`) REFERENCES `pengguna` (`id_pengguna`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
