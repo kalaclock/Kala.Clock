@@ -1,6 +1,10 @@
 -- ==========================================================
 -- FILE DATABASE UNTUK PROJECT IOT P10 MQTT
 -- ==========================================================
+
+CREATE DATABASE IF NOT EXISTS `kalaclock_iot_database`;
+USE `kalaclock_iot_database`;
+
 --
 -- Table structure for table `jam`
 --
