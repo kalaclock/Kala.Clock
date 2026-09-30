@@ -5,6 +5,29 @@
 CREATE DATABASE IF NOT EXISTS `kalaclock_iot_database`;
 USE `kalaclock_iot_database`;
 
+-- `
+-- Table structure for table `pengguna`
+--
+
+DROP TABLE IF EXISTS `pengguna`;
+
+CREATE TABLE `pengguna` (
+  `id_pengguna` int NOT NULL AUTO_INCREMENT,
+  `nama_pengguna` varchar(300) NOT NULL,
+  `email_pengguna` varchar(200) NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_pengguna`),
+  UNIQUE KEY `nama_pengguna` (`nama_pengguna`),
+  UNIQUE KEY `email_pengguna` (`email_pengguna`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `pengguna`
+--
+
+LOCK TABLES `pengguna` WRITE;
+UNLOCK TABLES;
+
 --
 -- Table structure for table `jam`
 --
@@ -27,29 +50,6 @@ CREATE TABLE `jam` (
 --
 
 LOCK TABLES `jam` WRITE;
-UNLOCK TABLES;
-
---
--- Table structure for table `pengguna`
---
-
-DROP TABLE IF EXISTS `pengguna`;
-
-CREATE TABLE `pengguna` (
-  `id_pengguna` int NOT NULL AUTO_INCREMENT,
-  `nama_pengguna` varchar(300) NOT NULL,
-  `email_pengguna` varchar(200) NOT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id_pengguna`),
-  UNIQUE KEY `nama_pengguna` (`nama_pengguna`),
-  UNIQUE KEY `email_pengguna` (`email_pengguna`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
---
--- Dumping data for table `pengguna`
---
-
-LOCK TABLES `pengguna` WRITE;
 UNLOCK TABLES;
 
 --
