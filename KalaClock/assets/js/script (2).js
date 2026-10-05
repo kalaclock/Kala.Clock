@@ -884,4 +884,4 @@ document.addEventListener("DOMContentLoaded", function () {
       el.addEventListener('change', saveCurrentInputs);
     }
   });
-}
+});
