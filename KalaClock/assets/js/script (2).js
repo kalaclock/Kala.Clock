@@ -689,7 +689,7 @@ function kirimSecaraRealTime() {
   if (mqttClient && mqttClient.isConnected()) {
     const msg = new Paho.MQTT.Message(JSON.stringify(payloadObj));
     msg.destinationName = mqtt_topic;
-    msg.retained = true;
+    msg.retained = false;
     mqttClient.send(msg);
     mqttSent = true;
   }
@@ -767,46 +767,42 @@ function tambahJadwal() {
 
 // 2. Fungsi Mengambil Data & Mengirim via MQTT
 function prosesSimpanJadwal() {
-  // A. Ambil Data Efisiensi dari Form
   const tidur = document.getElementById('valWaktuTidur')?.value || '22:00';
   const bangun = document.getElementById('valWaktuBangun')?.value || '04:00';
   const kecerahan = document.getElementById('valKecerahanMalam')?.value || 10;
   const autoSleep = document.getElementById('valAutoSleep')?.checked || false;
 
-  // B. Ambil Data Jadwal Pesan
   let jadwalList = [];
   const jadwalItems = document.querySelectorAll('.jadwal-item');
   jadwalItems.forEach(item => {
-    jadwalList.push({
-      nama: item.querySelector('.input-nama-jadwal')?.value || '',
-      mulai: item.querySelector('.input-mulai')?.value || '',
-      selesai: item.querySelector('.input-selesai')?.value || '',
-      pesan: item.querySelector('.input-pesan')?.value || ''
-    });
+    const pesan = item.querySelector('.input-pesan')?.value || '';
+    if (pesan.trim() !== '') { // Hanya ambil jika ada pesannya
+      jadwalList.push({
+        nama: item.querySelector('.input-nama-jadwal')?.value || '',
+        mulai: item.querySelector('.input-mulai')?.value || '',
+        selesai: item.querySelector('.input-selesai')?.value || '',
+        pesan: pesan
+      });
+    }
   });
 
-  // C. Susun Payload JSON (Sudah diperbaiki error nama variabelnya!)
   const dataKirim = {
-    cmd: "update_jadwal",
-    id_jam: id_jam, // Diambil dari variabel global id_jam
-    efisiensi: {
-      tidur: tidur,
-      bangun: bangun,
-      kecerahan_malam: kecerahan, // Fixed: Pakai variabel 'kecerahan'
-      auto_sleep: autoSleep
-    },
-    jadwal: jadwalList
+    action: "update_jadwal", // Tanda khusus buat ESP bahwa ini data jadwal
+    id_jam: id_jam,
+    efisiensi: { tidur, bangun, kecerahan_malam: kecerahan, auto_sleep: autoSleep },
+    jadwal: jadwalList // Kalau jadwalList kosong, ESP otomatis menghapus jadwal lama!
   };
 
   const payloadString = JSON.stringify(dataKirim);
-  console.log("Data yang dikirim ke MQTT:", payloadString);
 
-  // D. Kirim via mqttClient
   if (mqttClient && mqttClient.isConnected()) {
     let message = new Paho.MQTT.Message(payloadString);
     message.destinationName = mqtt_topic;
-    message.retained = true;
+    message.retained = false; 
     mqttClient.send(message);
+    mqttSent = true;
+  }
+}
 
     if (typeof showToastNotification === 'function') {
       showToastNotification(
