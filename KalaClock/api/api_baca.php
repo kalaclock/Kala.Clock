@@ -1,31 +1,39 @@
 <?php
 // ====================================================================
-// MATERI GURU WEB & IOT (File: api_baca.php)
-// File ini berfungsi sebagai API (Application Programming Interface).
-// Tugasnya adalah membaca data dari Database MySQL dan mengirimkannya 
-// kembali dalam bentuk format JSON (format standar pertukaran data).
+// FILE: api_baca.php (Dynamic per ID Jam)
 // ====================================================================
-
-// 1. Mengatur header agar browser tahu bahwa outputnya adalah JSON, bukan HTML biasa.
 header('Content-Type: application/json');
-
-// 2. Memanggil file koneksi untuk menghubungkan ke database.
 include 'koneksi.php';
 
-// 3. Menyiapkan perintah SQL untuk mengambil (SELECT) data dari tabel 'setting_p10' 
-// khusus untuk id=1 (karena kita hanya menyimpan satu konfigurasi alat).
-$sql = "SELECT * FROM settings_p10 WHERE setting_id=1";
+// Tangkap id_jam dari query string GET atau POST
+$id_jam = isset($_GET['id_jam']) ? (int)$_GET['id_jam'] : (isset($_POST['id_jam']) ? (int)$_POST['id_jam'] : 0);
 
-// 4. Menjalankan perintah SQL ke database.
+if ($id_jam <= 0) {
+    echo json_encode([
+        "status" => "error", 
+        "message" => "id_jam tidak valid atau belum dikirim!"
+    ]);
+    exit();
+}
+
+// Ambil setting spesifik untuk id_jam ini
+$sql = "SELECT s.*, j.nama_jam 
+        FROM settings_p10 s 
+        JOIN jam j ON s.id_jam = j.id_jam 
+        WHERE s.id_jam = $id_jam";
+
 $result = mysqli_query($conn, $sql);
 
-// 5. Mengecek apakah data ditemukan.
 if ($result && mysqli_num_rows($result) > 0) {
-    // Jika data ada, ubah bentuk data SQL (Array Assosiatif) menjadi JSON, lalu tampilkan (echo).
     echo json_encode(mysqli_fetch_assoc($result));
 } else {
-    // Jika data tidak ditemukan atau tabel kosong, kirimkan nilai default (bawaan) dalam bentuk JSON.
-    echo json_encode(["teks"=>"KOSONG", "brightness"=>30, "speed"=>40, "mode"=>1]);
+    // Jika jam terdaftar tapi belum ada setting, kirim nilai default
+    echo json_encode([
+        "id_jam" => $id_jam,
+        "teks" => "Kala.Clock Ready", 
+        "brightness" => 150, 
+        "speed" => 40, 
+        "mode" => 1
+    ]);
 }
 ?>
-
