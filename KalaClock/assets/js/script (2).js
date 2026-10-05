@@ -53,6 +53,28 @@ function saveCurrentInputs() {
   localStorage.setItem(`kala_clock_state_${id_jam}`, JSON.stringify(stateData));
 }
 
+// Mengirim data input ke API PHP secara otomatis saat user mengetik
+function saveInputsToDatabase() {
+  if (!id_jam) return;
+
+  const formData = new FormData();
+  formData.append('id_jam', id_jam);
+  formData.append('teks', document.getElementById('text-input')?.value || '');
+  formData.append('brightness', document.getElementById('brightness-range')?.value || 150);
+  formData.append('speed', document.getElementById('speed-range')?.value || 40);
+  formData.append('mode', document.getElementById('mode-select')?.value || 1);
+
+  fetch('api_simpan.php', {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+    console.log("Autosave DB Status:", data);
+  })
+  .catch(err => console.error("Gagal autosave ke database:", err));
+}
+
 // Muat kembali input tersimpan saat ID jam dipilih/login
 function loadSavedInputs(id) {
   const saved = localStorage.getItem(`kala_clock_state_${id}`);
