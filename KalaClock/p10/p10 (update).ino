@@ -291,7 +291,7 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
   Serial.print("]: ");
   Serial.println(pesanMasuk);
 
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<1024> doc;
   DeserializationError error = deserializeJson(doc, pesanMasuk);
 
   if (!error) {
@@ -324,13 +324,14 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
     teksSedangDiupdate = true;
 
     // ---- 1. Update Teks Berjalan ----
-    if (doc.containsKey("teks")) {
-      String teks_baru = doc["teks"].as<String>();
-      if (teks_baru != "") {
-        teks_berjalan = teks_baru;
-        posisi_X = panjang_layar; // Reset posisi ke awal
-      }
+  if (doc.containsKey("teks")) {
+    String teks_baru = doc["teks"].as<String>();
+    if (teks_baru != "") {
+      teksUtamaBackup = teks_baru; // SIMPAN JUGA KE BACKUP
+      teks_berjalan = teks_baru;
+      posisi_X = panjang_layar; // Reset posisi ke awal
     }
+  }
 
     // ---- 2. Update Kecerahan & Daya Layar ----
     if (doc.containsKey("brightness")) {
@@ -391,44 +392,47 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
       }
     }
 
-    // ---- 7. Update Jadwal & Efisiensi Energi ----
-    if (doc.containsKey("cmd") && doc["cmd"].as<String>() == "update_jadwal") {
-      // Baca Efisiensi
-      if (doc.containsKey("efisiensi")) {
-        JsonObject eff = doc["efisiensi"];
-        String t = eff["tidur"].as<String>();
-        String b = eff["bangun"].as<String>();
-        jamTidur = t.substring(0, 2).toInt();
-        menitTidur = t.substring(3, 5).toInt();
-        jamBangun = b.substring(0, 2).toInt();
-        menitBangun = b.substring(3, 5).toInt();
-        kecerahanMalam = eff["kecerahan_malam"].as<int>();
-        autoSleep = eff["auto_sleep"].as<bool>();
-        efisiensiAktif = true;
-      }
+   // ---- 7. Update Jadwal & Efisiensi Energi ----
+String cmd = doc["cmd"] | doc["action"];
+if (cmd == "update_jadwal" || cmd == "set_jadwal") {
+  
+  // Baca Efisiensi Energi (Night Mode)
+  if (doc.containsKey("efisiensi")) {
+    JsonObject eff = doc["efisiensi"];
+    String t = eff["tidur"].as<String>();
+    String b = eff["bangun"].as<String>();
+    jamTidur = t.substring(0, 2).toInt();
+    menitTidur = t.substring(3, 5).toInt();
+    jamBangun = b.substring(0, 2).toInt();
+    menitBangun = b.substring(3, 5).toInt();
+    kecerahanMalam = eff["kecerahan_malam"].as<int>();
+    autoSleep = eff["auto_sleep"].as<bool>();
+    efisiensiAktif = true;
+  }
 
-      // Baca Array Jadwal Pesan
-      if (doc.containsKey("jadwal")) {
-        JsonArray arr = doc["jadwal"].as<JsonArray>();
-        jumlahJadwal = 0;
-        for (JsonObject item : arr) {
-          if (jumlahJadwal < MAX_JADWAL) {
-            String m = item["mulai"].as<String>();
-            String s = item["selesai"].as<String>();
-            
-            daftarJadwal[jumlahJadwal].nama = item["nama"].as<String>();
-            daftarJadwal[jumlahJadwal].jamMulai = m.substring(0, 2).toInt();
-            daftarJadwal[jumlahJadwal].menitMulai = m.substring(3, 5).toInt();
-            daftarJadwal[jumlahJadwal].jamSelesai = s.substring(0, 2).toInt();
-            daftarJadwal[jumlahJadwal].menitSelesai = s.substring(3, 5).toInt();
-            daftarJadwal[jumlahJadwal].pesan = item["pesan"].as<String>();
-            jumlahJadwal++;
-          }
-        }
+  // Hapus/Kosongkan jadwal lama terlebih dahulu
+  jumlahJadwal = 0; 
+
+  // Baca Array Jadwal Pesan Baru (jika ada)
+  if (doc.containsKey("jadwal")) {
+    JsonArray arr = doc["jadwal"].as<JsonArray>();
+    for (JsonObject item : arr) {
+      if (jumlahJadwal < MAX_JADWAL) {
+        String m = item["mulai"].as<String>();
+        String s = item["selesai"].as<String>();
+        
+        daftarJadwal[jumlahJadwal].nama = item["nama"].as<String>();
+        daftarJadwal[jumlahJadwal].jamMulai = m.substring(0, 2).toInt();
+        daftarJadwal[jumlahJadwal].menitMulai = m.substring(3, 5).toInt();
+        daftarJadwal[jumlahJadwal].jamSelesai = s.substring(0, 2).toInt();
+        daftarJadwal[jumlahJadwal].menitSelesai = s.substring(3, 5).toInt();
+        daftarJadwal[jumlahJadwal].pesan = item["pesan"].as<String>();
+        jumlahJadwal++;
       }
-      Serial.println("Jadwal dan Efisiensi Energi Berhasil Diperbarui!");
     }
-
+  }
+  Serial.printf("Jadwal diperbarui! Total jadwal aktif: %d\n", jumlahJadwal);
+}
     teksSedangDiupdate = false;
 
     // Simpan ke Flash LittleFS
@@ -450,7 +454,12 @@ void periksaJadwalDanEfisiensi() {
   ambilWaktuSekarang(j, m, d, hr, bl, th);
   int menitSekarang = j * 60 + m;
 
-  // 1. EVALUASI EFISIENSI ENERGI (NIGHT MODE)
+  // 1. INSIALISASI BACKUP TEKS UTAMA
+  if (teksUtamaBackup == "") {
+    teksUtamaBackup = teks_berjalan;
+  }
+
+  // 2. EVALUASI EFISIENSI ENERGI (NIGHT MODE)
   if (efisiensiAktif) {
     int menitMulaiTidur = jamTidur * 60 + menitTidur;
     int menitSelesaiTidur = jamBangun * 60 + menitBangun;
@@ -475,28 +484,25 @@ void periksaJadwalDanEfisiensi() {
     }
   }
 
-  // 2. EVALUASI SIARAN PESAN TERJADWAL
-  if (teksUtamaBackup == "") {
-    teksUtamaBackup = teks_berjalan; // Simpan teks utama web
-  }
-
+  // 3. EVALUASI SIARAN PESAN TERJADWAL
   bool adaJadwalAktif = false;
   for (int i = 0; i < jumlahJadwal; i++) {
     int mulai = daftarJadwal[i].jamMulai * 60 + daftarJadwal[i].menitMulai;
     int selesai = daftarJadwal[i].jamSelesai * 60 + daftarJadwal[i].menitSelesai;
 
     if (menitSekarang >= mulai && menitSekarang <= selesai) {
+      // Tampilkan pesan jadwal jika jam sekarang berada di dalam rentang
       if (teks_berjalan != daftarJadwal[i].pesan) {
         teks_berjalan = daftarJadwal[i].pesan;
-        posisi_X = panjang_layar;
+        posisi_X = panjang_layar; // Reset running text dari kanan
       }
       adaJadwalAktif = true;
-      break;
+      break; // Ambil jadwal pertama yang cocok
     }
   }
 
-  // Kembalikan ke teks utama jika tidak ada jadwal aktif
-  if (!adaJadwalAktif && teksUtamaBackup != "" && teks_berjalan != teksUtamaBackup) {
+  // Kembalikan ke teks utama jika TIDAK ADA jadwal yang aktif
+  if (!adaJadwalAktif && teks_berjalan != teksUtamaBackup) {
     teks_berjalan = teksUtamaBackup;
     posisi_X = panjang_layar;
   }
