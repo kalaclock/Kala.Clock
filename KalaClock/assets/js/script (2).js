@@ -18,8 +18,8 @@ const mqtt_broker = "broker.emqx.io";      // Alamat broker MQTT publik EMQX
 const mqtt_port   = 8084;                  // Port WebSocket aman (WSS / SSL)
 
 let id_jam = '';
-let mqtt_topic = '';
-let mqtt_topic_status = '';
+let mqtt_topic = `KalaClock/${id_jam}`;
+let mqtt_topic_status = `KalaClock/${id_jam}/status`;
 let mqttClient = null;
 let timezoneOffset    = 8;                 // Default WITA (UTC+8)
 let currentMode       = 4;                 // Default 4: Jam Digital + Teks Bergantian
