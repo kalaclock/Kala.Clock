@@ -750,7 +750,7 @@ function tambahJadwal() {
 
   newItem.innerHTML = `
     <div style="display: flex; justify-content-content: space-between; align-items: center; margin-bottom: 8px;">
-      <input type="text" value="Jadwal ${jadwalCount}" class="input-nama-jadwal" style="background: transparent; border: none; font-weight: bold; color: var(--text-main);">
+      <input type="text" value="Jadwal ${jadwalCount}" class="input-nama-jadwal" style="background: transparent; border: none; color: var(--accent-tan); font-size: 11px; font-weight: 700; outline: none; width: 85px; font-family: 'Plus Jakarta Sans';">
       <div style="display: flex; gap: 4px; align-items: center;">
         <input type="time" class="control-input input-mulai" value="12:00" style="height: 24px; padding: 0 4px;">
         <span style="color: var(--text-muted); font-size: 10px;">-</span>
