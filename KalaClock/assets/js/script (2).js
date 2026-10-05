@@ -811,11 +811,9 @@ function prosesSimpanJadwal() {
       );
     } else {
       alert("Jadwal & Efisiensi Berhasil Dikirim!");
-    }
-  } else {
+    } else {
     alert("Gagal: Perangkat belum terhubung ke Broker MQTT!");
   }
-}
 
 // ==========================================================================
 // BAGIAN 9: EVENT LISTENER & INISIALISASI HALAMAN
