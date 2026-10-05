@@ -2,8 +2,8 @@
 -- FILE DATABASE UNTUK PROJECT IOT P10 MQTT
 -- ==========================================================
 
-CREATE DATABASE IF NOT EXISTS `kalaclock_iot_database`;
-USE `kalaclock_iot_database`;
+CREATE DATABASE IF NOT EXISTS `KALACLOCK_IOT_DATABASE`;
+USE `KALACLOCK_IOT_DATABASE`;
 
 -- `
 -- Table structure for table `pengguna`
