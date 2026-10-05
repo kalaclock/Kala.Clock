@@ -14,6 +14,9 @@
 // ==========================================
 // 1. GLOBAL VARIABLES & CONFIG
 // ==========================================
+const mqtt_broker = "broker.emqx.io";      // Alamat broker MQTT publik EMQX
+const mqtt_port   = 8084;                  // Port WebSocket aman (WSS / SSL)
+
 let id_jam = '';
 let mqtt_topic = '';
 let mqtt_topic_status = '';
