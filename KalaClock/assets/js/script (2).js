@@ -733,6 +733,94 @@ function showToastNotification(title, message) {
   }, 3800);
 }
 
+// ==========================================
+// FUNGSI MANAJEMEN JADWAL & EFISIENSI
+// ==========================================
+let jadwalCount = 1;
+
+// 1. Fungsi Tambah Baris Jadwal Baru di UI
+function tambahJadwal() {
+  jadwalCount++;
+  const container = document.getElementById('wadahJadwal');
+  if (!container) return;
+
+  const newItem = document.createElement('div');
+  newItem.className = 'jadwal-item';
+  newItem.style.cssText = "background-color: var(--bg-subcard); padding: 12px; border-radius: var(--radius-btn); margin-bottom: 8px;";
+
+  newItem.innerHTML = `
+    <div style="display: flex; justify-content-content: space-between; align-items: center; margin-bottom: 8px;">
+      <input type="text" value="Jadwal ${jadwalCount}" class="input-nama-jadwal" style="background: transparent; border: none; font-weight: bold; color: var(--text-main);">
+      <div style="display: flex; gap: 4px; align-items: center;">
+        <input type="time" class="control-input input-mulai" value="12:00" style="height: 24px; padding: 0 4px;">
+        <span style="color: var(--text-muted); font-size: 10px;">-</span>
+        <input type="time" class="control-input input-selesai" value="13:00" style="height: 24px; padding: 0 4px;">
+        <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: transparent; border: none; color: #ff4d4d; cursor: pointer;">✕</button>
+      </div>
+    </div>
+    <input type="text" class="control-input input-pesan" placeholder="Ketik pesan jadwal baru..." value="" style="width: 100%;">
+  `;
+
+  container.appendChild(newItem);
+  setTimeout(() => { container.scrollTop = container.scrollHeight; }, 100);
+}
+
+// 2. Fungsi Mengambil Data & Mengirim via MQTT
+function prosesSimpanJadwal() {
+  // A. Ambil Data Efisiensi dari Form
+  const tidur = document.getElementById('valWaktuTidur')?.value || '22:00';
+  const bangun = document.getElementById('valWaktuBangun')?.value || '04:00';
+  const kecerahan = document.getElementById('valKecerahanMalam')?.value || 10;
+  const autoSleep = document.getElementById('valAutoSleep')?.checked || false;
+
+  // B. Ambil Data Jadwal Pesan
+  let jadwalList = [];
+  const jadwalItems = document.querySelectorAll('.jadwal-item');
+  jadwalItems.forEach(item => {
+    jadwalList.push({
+      nama: item.querySelector('.input-nama-jadwal')?.value || '',
+      mulai: item.querySelector('.input-mulai')?.value || '',
+      selesai: item.querySelector('.input-selesai')?.value || '',
+      pesan: item.querySelector('.input-pesan')?.value || ''
+    });
+  });
+
+  // C. Susun Payload JSON (Sudah diperbaiki error nama variabelnya!)
+  const dataKirim = {
+    cmd: "update_jadwal",
+    id_jam: id_jam, // Diambil dari variabel global id_jam
+    efisiensi: {
+      tidur: tidur,
+      bangun: bangun,
+      kecerahan_malam: kecerahan, // Fixed: Pakai variabel 'kecerahan'
+      auto_sleep: autoSleep
+    },
+    jadwal: jadwalList
+  };
+
+  const payloadString = JSON.stringify(dataKirim);
+  console.log("Data yang dikirim ke MQTT:", payloadString);
+
+  // D. Kirim via mqttClient
+  if (mqttClient && mqttClient.isConnected()) {
+    let message = new Paho.MQTT.Message(payloadString);
+    message.destinationName = mqtt_topic;
+    message.retained = true;
+    mqttClient.send(message);
+
+    if (typeof showToastNotification === 'function') {
+      showToastNotification(
+        "Jadwal & Efisiensi Tersimpan!",
+        "Pengaturan jadwal baru telah berhasil dikirim ke perangkat jam IoT."
+      );
+    } else {
+      alert("Jadwal & Efisiensi Berhasil Dikirim!");
+    }
+  } else {
+    alert("Gagal: Perangkat belum terhubung ke Broker MQTT!");
+  }
+}
+
 // ==========================================================================
 // BAGIAN 9: EVENT LISTENER & INISIALISASI HALAMAN
 // ==========================================================================
