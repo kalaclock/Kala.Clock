@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // 4. Menulis Perintah SQL.
     // Kita gunakan UPDATE untuk memperbarui baris data yang ada pada id=1 (kita tidak menggunakan INSERT karena alat hanya membaca 1 data seting).
-    $sql = "UPDATE setting_p10 SET teks='$teks', brightness=$brightness, speed=$speed, mode=$mode WHERE id=1";
+    $sql = "UPDATE settings_p10 SET teks='$teks', brightness=$brightness, speed=$speed, mode=$mode WHERE setting_id=1";
     
     // 5. Eksekusi perintah SQL.
     if (mysqli_query($conn, $sql)) {

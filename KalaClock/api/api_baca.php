@@ -14,7 +14,7 @@ include 'koneksi.php';
 
 // 3. Menyiapkan perintah SQL untuk mengambil (SELECT) data dari tabel 'setting_p10' 
 // khusus untuk id=1 (karena kita hanya menyimpan satu konfigurasi alat).
-$sql = "SELECT * FROM setting_p10 WHERE id=1";
+$sql = "SELECT * FROM settings_p10 WHERE setting_id=1";
 
 // 4. Menjalankan perintah SQL ke database.
 $result = mysqli_query($conn, $sql);
@@ -28,3 +28,4 @@ if ($result && mysqli_num_rows($result) > 0) {
     echo json_encode(["teks"=>"KOSONG", "brightness"=>30, "speed"=>40, "mode"=>1]);
 }
 ?>
+
