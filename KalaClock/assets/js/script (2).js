@@ -18,6 +18,15 @@ let id_jam = '';
 let mqtt_topic = '';
 let mqtt_topic_status = '';
 let mqttClient = null;
+let timezoneOffset    = 8;                 // Default WITA (UTC+8)
+let currentMode       = 4;                 // Default 4: Jam Digital + Teks Bergantian
+let currentBrightness = 80;                // Kecerahan awal (0 - 255)
+let currentSpeed      = 40;                // Kecepatan running text (ms)
+
+// Variabel untuk mode 4 (alternasi tampilan jam & teks virtual)
+let mode4ShowClock    = true;
+let mode4Timer        = null;
+
 
 // ==========================================
 // 2. AUTO-SAVE & LOAD FUNCTIONS (LETAKKAN DI SINI)
