@@ -32,7 +32,7 @@ let mode4Timer        = null;
 
 
 // ==========================================
-// 2. AUTO-SAVE & LOAD FUNCTIONS (LETAKKAN DI SINI)
+// 2. AUTO-SAVE & LOAD FUNCTIONS (DISESUAIKAN DENGAN NAMA ID FORM REALS)
 // ==========================================
 
 // Simpan input form ke localStorage khusus ID jam ini
@@ -40,31 +40,31 @@ function saveCurrentInputs() {
   if (!id_jam) return;
   
   const stateData = {
-    teks: document.getElementById('text-input')?.value || '',
-    brightness: document.getElementById('brightness-range')?.value || 80,
-    speed: document.getElementById('speed-range')?.value || 40,
-    mode: document.getElementById('mode-select')?.value || 1,
-    timezone: document.getElementById('timezone-select')?.value || 8,
-    font: document.getElementById('font-select')?.value || 'default',
-    scroll_type: document.getElementById('scroll-type-select')?.value || 'smooth',
-    color_hex: document.getElementById('color-picker')?.value || '#FFFFFF'
+    teks: document.getElementById('inputTeks')?.value || '',
+    brightness: document.getElementById('inputBrightness')?.value || 80,
+    speed: document.getElementById('inputSpeed')?.value || 40,
+    mode: currentMode || 4,
+    timezone: timezoneOffset || 8
   };
 
   localStorage.setItem(`kala_clock_state_${id_jam}`, JSON.stringify(stateData));
+  
+  // Panggil juga pengiriman ke database MySQL
+  saveInputsToDatabase();
 }
 
-// Mengirim data input ke API PHP secara otomatis saat user mengetik
+// Mengirim data input ke API PHP secara otomatis saat user mengetik/mengubah form
 function saveInputsToDatabase() {
   if (!id_jam) return;
 
   const formData = new FormData();
   formData.append('id_jam', id_jam);
-  formData.append('teks', document.getElementById('text-input')?.value || '');
-  formData.append('brightness', document.getElementById('brightness-range')?.value || 150);
-  formData.append('speed', document.getElementById('speed-range')?.value || 40);
-  formData.append('mode', document.getElementById('mode-select')?.value || 1);
+  formData.append('teks', document.getElementById('inputTeks')?.value || '');
+  formData.append('brightness', document.getElementById('inputBrightness')?.value || 80);
+  formData.append('speed', document.getElementById('inputSpeed')?.value || 40);
+  formData.append('mode', currentMode || 4);
 
-  fetch('api_simpan.php', {
+  fetch('api/api_simpan.php', {
     method: 'POST',
     body: formData
   })
@@ -83,30 +83,30 @@ function loadSavedInputs(id) {
   try {
     const data = JSON.parse(saved);
 
-    if (data.teks !== undefined && document.getElementById('text-input')) {
-      document.getElementById('text-input').value = data.teks;
+    if (data.teks !== undefined && document.getElementById('inputTeks')) {
+      document.getElementById('inputTeks').value = data.teks;
+      updateTickerText(data.teks);
     }
-    if (data.brightness !== undefined && document.getElementById('brightness-range')) {
-      document.getElementById('brightness-range').value = data.brightness;
+    if (data.brightness !== undefined) {
+      setBrightness(data.brightness, true);
     }
-    if (data.speed !== undefined && document.getElementById('speed-range')) {
-      document.getElementById('speed-range').value = data.speed;
+    if (data.speed !== undefined) {
+      setSpeed(data.speed);
+      if (document.getElementById('inputSpeed')) {
+        document.getElementById('inputSpeed').value = data.speed;
+      }
     }
-    if (data.mode !== undefined && document.getElementById('mode-select')) {
-      document.getElementById('mode-select').value = data.mode;
+    if (data.mode !== undefined) {
+      setDisplayMode(data.mode);
     }
-    if (data.timezone !== undefined && document.getElementById('timezone-select')) {
-      document.getElementById('timezone-select').value = data.timezone;
+    if (data.timezone !== undefined) {
+      setTimezonePreset(data.timezone);
     }
 
-    // Trigger pembaruan animasi preview visual setelah data di-load
-    if (typeof updatePreview === 'function') updatePreview();
-    if (typeof updateModeDisplay === 'function') updateModeDisplay();
   } catch (e) {
     console.error("Gagal membaca saved state:", e);
   }
 }
-
 // ==========================================
 // 3. SET CLOCK ID & MQTT LOGIC
 // ==========================================
@@ -765,7 +765,6 @@ function tambahJadwal() {
   setTimeout(() => { container.scrollTop = container.scrollHeight; }, 100);
 }
 
-// 2. Fungsi Mengambil Data & Mengirim via MQTT
 function prosesSimpanJadwal() {
   const tidur = document.getElementById('valWaktuTidur')?.value || '22:00';
   const bangun = document.getElementById('valWaktuBangun')?.value || '04:00';
@@ -776,7 +775,7 @@ function prosesSimpanJadwal() {
   const jadwalItems = document.querySelectorAll('.jadwal-item');
   jadwalItems.forEach(item => {
     const pesan = item.querySelector('.input-pesan')?.value || '';
-    if (pesan.trim() !== '') { // Hanya ambil jika ada pesannya
+    if (pesan.trim() !== '') {
       jadwalList.push({
         nama: item.querySelector('.input-nama-jadwal')?.value || '',
         mulai: item.querySelector('.input-mulai')?.value || '',
@@ -787,10 +786,10 @@ function prosesSimpanJadwal() {
   });
 
   const dataKirim = {
-    action: "update_jadwal", // Tanda khusus buat ESP bahwa ini data jadwal
+    action: "update_jadwal",
     id_jam: id_jam,
     efisiensi: { tidur, bangun, kecerahan_malam: kecerahan, auto_sleep: autoSleep },
-    jadwal: jadwalList // Kalau jadwalList kosong, ESP otomatis menghapus jadwal lama!
+    jadwal: jadwalList
   };
 
   const payloadString = JSON.stringify(dataKirim);
@@ -800,18 +799,17 @@ function prosesSimpanJadwal() {
     message.destinationName = mqtt_topic;
     message.retained = false; 
     mqttClient.send(message);
-    mqttSent = true;
+  }
+
+  if (typeof showToastNotification === 'function') {
+    showToastNotification(
+      "Jadwal & Efisiensi Tersimpan!",
+      "Pengaturan jadwal baru telah berhasil dikirim ke perangkat jam IoT."
+    );
+  } else {
+    alert("Jadwal & Efisiensi Berhasil Dikirim!");
   }
 }
-
-    if (typeof showToastNotification === 'function') {
-      showToastNotification(
-        "Jadwal & Efisiensi Tersimpan!",
-        "Pengaturan jadwal baru telah berhasil dikirim ke perangkat jam IoT."
-      );
-    } else {
-      alert("Jadwal & Efisiensi Berhasil Dikirim!");
-    }
 
 // ==========================================================================
 // BAGIAN 9: EVENT LISTENER & INISIALISASI HALAMAN
@@ -877,11 +875,7 @@ document.addEventListener("DOMContentLoaded", function () {
   setInterval(cekStatusDatabase, 12000);
 
   // 10. Event listener untuk simpan otomatis tiap kali ada perubahan input
-  const inputsToTrack = [
-    'text-input', 'brightness-range', 'speed-range', 
-    'mode-select', 'timezone-select', 'font-select', 
-    'scroll-type-select', 'color-picker'
-  ];
+  const inputsToTrack = ['inputTeks', 'inputBrightness', 'inputSpeed'];
 
   inputsToTrack.forEach(id => {
     const el = document.getElementById(id);
@@ -890,5 +884,3 @@ document.addEventListener("DOMContentLoaded", function () {
       el.addEventListener('change', saveCurrentInputs);
     }
   });
-  
-});
