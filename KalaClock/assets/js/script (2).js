@@ -11,34 +11,90 @@
 // 7. Notifikasi Toast Sukses Pengiriman Real-Time
 // ==========================================================================
 
-// ==========================================================================
-// BAGIAN 1: KONFIGURASI MQTT & VARIABEL UTAMA
-// Sesuai instruksi: mqtt_topic tetap const, sedangkan id_jam dan mqtt_topic_status
-// menggunakan 'let' sehingga input user saat login langsung mengubah mqtt_topic_status.
-// ==========================================================================
-const mqtt_broker = "broker.emqx.io";      // Alamat broker MQTT publik EMQX
-const mqtt_port   = 8084;                  // Port WebSocket aman (WSS / SSL)
+// ==========================================
+// 1. GLOBAL VARIABLES & CONFIG
+// ==========================================
+let id_jam = '';
+let mqtt_topic = '';
+let mqtt_topic_status = '';
+let mqttClient = null;
 
-let id_jam = "KC00"; // Dynamic from login form
-let mqtt_topic = `KalaClock/${id_jam}`;
-let mqtt_topic_status = `KalaClock/${id_jam}/status`;
+// ==========================================
+// 2. AUTO-SAVE & LOAD FUNCTIONS (LETAKKAN DI SINI)
+// ==========================================
 
-// Call this inside your login / change clock ID function
+// Simpan input form ke localStorage khusus ID jam ini
+function saveCurrentInputs() {
+  if (!id_jam) return;
+  
+  const stateData = {
+    teks: document.getElementById('text-input')?.value || '',
+    brightness: document.getElementById('brightness-range')?.value || 80,
+    speed: document.getElementById('speed-range')?.value || 40,
+    mode: document.getElementById('mode-select')?.value || 1,
+    timezone: document.getElementById('timezone-select')?.value || 8,
+    font: document.getElementById('font-select')?.value || 'default',
+    scroll_type: document.getElementById('scroll-type-select')?.value || 'smooth',
+    color_hex: document.getElementById('color-picker')?.value || '#FFFFFF'
+  };
+
+  localStorage.setItem(`kala_clock_state_${id_jam}`, JSON.stringify(stateData));
+}
+
+// Muat kembali input tersimpan saat ID jam dipilih/login
+function loadSavedInputs(id) {
+  const saved = localStorage.getItem(`kala_clock_state_${id}`);
+  if (!saved) return;
+
+  try {
+    const data = JSON.parse(saved);
+
+    if (data.teks !== undefined && document.getElementById('text-input')) {
+      document.getElementById('text-input').value = data.teks;
+    }
+    if (data.brightness !== undefined && document.getElementById('brightness-range')) {
+      document.getElementById('brightness-range').value = data.brightness;
+    }
+    if (data.speed !== undefined && document.getElementById('speed-range')) {
+      document.getElementById('speed-range').value = data.speed;
+    }
+    if (data.mode !== undefined && document.getElementById('mode-select')) {
+      document.getElementById('mode-select').value = data.mode;
+    }
+    if (data.timezone !== undefined && document.getElementById('timezone-select')) {
+      document.getElementById('timezone-select').value = data.timezone;
+    }
+
+    // Trigger pembaruan animasi preview visual setelah data di-load
+    if (typeof updatePreview === 'function') updatePreview();
+    if (typeof updateModeDisplay === 'function') updateModeDisplay();
+  } catch (e) {
+    console.error("Gagal membaca saved state:", e);
+  }
+}
+
+// ==========================================
+// 3. SET CLOCK ID & MQTT LOGIC
+// ==========================================
 function setClockID(newID) {
+  if (!newID) return;
+
+  // Unsubscribe topik lama jika ID berubah
+  if (mqttClient && mqttClient.isConnected() && id_jam && id_jam !== newID) {
+    mqttClient.unsubscribe(mqtt_topic_status);
+  }
+
   id_jam = newID;
   mqtt_topic = `KalaClock/${id_jam}`;
   mqtt_topic_status = `KalaClock/${id_jam}/status`;
-}  
-  // Re-subscribe client to new mqtt_topic_status here
-let mqttClient        = null;              // Instance client Paho MQTT
-let timezoneOffset    = 8;                 // Default WITA (UTC+8)
-let currentMode       = 4;                 // Default 4: Jam Digital + Teks Bergantian
-let currentBrightness = 80;                // Kecerahan awal (0 - 255)
-let currentSpeed      = 40;                // Kecepatan running text (ms)
 
-// Variabel untuk mode 4 (alternasi tampilan jam & teks virtual)
-let mode4ShowClock    = true;
-let mode4Timer        = null;
+  // --- MEMANGGIL LOAD SAVED INPUTS SAAT LOGIN / GANTI ID ---
+  loadSavedInputs(newID);
+
+  if (mqttClient && mqttClient.isConnected()) {
+    mqttClient.subscribe(mqtt_topic_status);
+  }
+}
 
 // ==========================================================================
 // BAGIAN 2: INISIALISASI JAM ANALOG & DIGITAL (SELALU SINKRON)
@@ -705,6 +761,20 @@ document.addEventListener("DOMContentLoaded", function () {
   // 9. Cek status database berkala
   cekStatusDatabase();
   setInterval(cekStatusDatabase, 12000);
-  
+
+  // 10. Event listener untuk simpan otomatis tiap kali ada perubahan input
+  const inputsToTrack = [
+    'text-input', 'brightness-range', 'speed-range', 
+    'mode-select', 'timezone-select', 'font-select', 
+    'scroll-type-select', 'color-picker'
+  ];
+
+  inputsToTrack.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', saveCurrentInputs);
+      el.addEventListener('change', saveCurrentInputs);
+    }
+  });
   
 });
