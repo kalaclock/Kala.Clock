@@ -394,7 +394,7 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
 
    // ---- 7. Update Jadwal & Efisiensi Energi ----
 String action = doc["action"];
-if (action == "update_jadwal" || action == "set_jadwal") {
+if (action == "update_jadwal") {
   
   // Baca Efisiensi Energi (Night Mode)
   if (doc.containsKey("efisiensi")) {
@@ -435,6 +435,23 @@ if (action == "update_jadwal" || action == "set_jadwal") {
 }
     teksSedangDiupdate = false;
 
+if (doc.containsKey("id_jam")) {
+  String targetId = doc["id_jam"].as<String>();
+  String unitId = String(mqtt_topic);
+  
+  // Jika mqtt_topic berbentuk KalaClock/KC00, ambil substring ID nya saja (KC00)
+  int slashIdx = unitId.lastIndexOf('/');
+  if (slashIdx != -1) {
+    unitId = unitId.substring(slashIdx + 1);
+  }
+
+  // Cocokkan id_jam
+  if (targetId != unitId && targetId != "BROADCAST" && doc["id_jam"].as<String>() != String(mqtt_topic)) {
+    Serial.println("Pesan diabaikan: id_jam tidak cocok (" + targetId + " != " + unitId + ")");
+    return;
+  }
+}
+    
     // Simpan ke Flash LittleFS
     File f = LittleFS.open("/config.json", "w");
     if (f) {
