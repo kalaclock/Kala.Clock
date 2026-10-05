@@ -39,20 +39,36 @@ let mode4Timer        = null;
 function saveCurrentInputs() {
   if (!id_jam) return;
   
+  // Ambil daftar jadwal aktif
+  let jadwalList = [];
+  document.querySelectorAll('.jadwal-item').forEach(item => {
+    const pesan = item.querySelector('.input-pesan')?.value || '';
+    if (pesan.trim() !== '') {
+      jadwalList.push({
+        nama: item.querySelector('.input-nama-jadwal')?.value || '',
+        mulai: item.querySelector('.input-mulai')?.value || '',
+        selesai: item.querySelector('.input-selesai')?.value || '',
+        pesan: pesan
+      });
+    }
+  });
+
   const stateData = {
     teks: document.getElementById('inputTeks')?.value || '',
     brightness: document.getElementById('inputBrightness')?.value || 80,
     speed: document.getElementById('inputSpeed')?.value || 40,
-    mode: currentMode || 4,
-    timezone: timezoneOffset || 8
+    mode: currentMode,
+    timezone: timezoneOffset,
+    jadwal: jadwalList,
+    tidur: document.getElementById('valWaktuTidur')?.value || '22:00',
+    bangun: document.getElementById('valWaktuBangun')?.value || '04:00',
+    kecerahan_malam: document.getElementById('valKecerahanMalam')?.value || 10,
+    auto_sleep: document.getElementById('valAutoSleep')?.checked || false
   };
 
   localStorage.setItem(`kala_clock_state_${id_jam}`, JSON.stringify(stateData));
-  
-  // Panggil juga pengiriman ke database MySQL
   saveInputsToDatabase();
 }
-
 // Mengirim data input ke API PHP secara otomatis saat user mengetik/mengubah form
 function saveInputsToDatabase() {
   if (!id_jam) return;
@@ -76,8 +92,8 @@ function saveInputsToDatabase() {
 }
 
 // Muat kembali input tersimpan saat ID jam dipilih/login
-function loadSavedInputs(id) {
-  const saved = localStorage.getItem(`kala_clock_state_${id}`);
+function loadSavedInputs(id_jam) {
+  const saved = localStorage.getItem(`kala_clock_state_${id_jam}`);
   if (!saved) return;
 
   try {
@@ -87,22 +103,46 @@ function loadSavedInputs(id) {
       document.getElementById('inputTeks').value = data.teks;
       updateTickerText(data.teks);
     }
-    if (data.brightness !== undefined) {
-      setBrightness(data.brightness, true);
-    }
+    if (data.brightness !== undefined) setBrightness(data.brightness, true);
     if (data.speed !== undefined) {
       setSpeed(data.speed);
-      if (document.getElementById('inputSpeed')) {
-        document.getElementById('inputSpeed').value = data.speed;
+      if (document.getElementById('inputSpeed')) document.getElementById('inputSpeed').value = data.speed;
+    }
+    if (data.mode !== undefined) setDisplayMode(data.mode);
+    if (data.timezone !== undefined) setTimezonePreset(data.timezone);
+
+    // Load Efisiensi & Jadwal
+    if (data.tidur && document.getElementById('valWaktuTidur')) document.getElementById('valWaktuTidur').value = data.tidur;
+    if (data.bangun && document.getElementById('valWaktuBangun')) document.getElementById('valWaktuBangun').value = data.bangun;
+    if (data.kecerahan_malam && document.getElementById('valKecerahanMalam')) document.getElementById('valKecerahanMalam').value = data.kecerahan_malam;
+    if (data.auto_sleep !== undefined && document.getElementById('valAutoSleep')) document.getElementById('valAutoSleep').checked = data.auto_sleep;
+
+    if (data.jadwal && Array.isArray(data.jadwal) && data.jadwal.length > 0) {
+      const container = document.getElementById('wadahJadwal');
+      if (container) {
+        container.innerHTML = ''; // Clear default
+        jadwalCount = 0;
+        data.jadwal.forEach(j => {
+          jadwalCount++;
+          const newItem = document.createElement('div');
+          newItem.className = 'jadwal-item';
+          newItem.style.cssText = "background-color: var(--bg-subcard); padding: 12px; border-radius: var(--radius-btn); border: 1px solid var(--border-subtle); margin-bottom: 8px;";
+          newItem.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <input type="text" value="${j.nama}" class="input-nama-jadwal" style="background: transparent; border: none; color: var(--accent-tan); font-size: 11px; font-weight: 700; outline: none; width: 85px; font-family: 'Plus Jakarta Sans';">
+              <div style="display: flex; gap: 4px; align-items: center;">
+                <input type="time" class="control-input input-mulai" value="${j.mulai}" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
+                <span style="color: var(--text-muted); font-size: 10px;">-</span>
+                <input type="time" class="control-input input-selesai" value="${j.selesai}" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
+                <button onclick="this.parentElement.parentElement.parentElement.remove(); saveCurrentInputs();" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;" title="Hapus;">✕</button>
+              </div>
+            </div>
+            <input type="text" class="control-input input-pesan" placeholder="Ketik pesan jadwal baru..." value="${j.pesan}" style="width: 100%;">
+          `;
+          container.appendChild(newItem);
+        });
       }
     }
-    if (data.mode !== undefined) {
-      setDisplayMode(data.mode);
-    }
-    if (data.timezone !== undefined) {
-      setTimezonePreset(data.timezone);
-    }
-
   } catch (e) {
     console.error("Gagal membaca saved state:", e);
   }
@@ -809,6 +849,7 @@ function prosesSimpanJadwal() {
   } else {
     alert("Jadwal & Efisiensi Berhasil Dikirim!");
   }
+  saveCurrentInputs();
 }
 
 // ==========================================================================
