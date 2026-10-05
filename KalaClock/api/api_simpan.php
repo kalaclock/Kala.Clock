@@ -1,35 +1,48 @@
 <?php
 // ====================================================================
-// MATERI GURU WEB & DATABASE (File: api_simpan.php)
-// File ini berfungsi untuk menerima data (teks, kecepatan, kecerahan)
-// yang dikirim dari form web, dan menyimpannya (UPDATE) ke Database MySQL.
+// FILE: api_simpan.php (Dynamic per ID Jam - Upsert Mode)
 // ====================================================================
-
-// 1. Panggil file koneksi untuk membuka akses ke database.
+header('Content-Type: application/json');
 include 'koneksi.php';
 
-// 2. Pastikan file ini hanya dijalankan ketika ada data yang dikirim melalui metode POST.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-    // 3. Menangkap dan Mengamankan Data.
-    // mysqli_real_escape_string digunakan untuk mencegah serangan Hacker (SQL Injection).
-    // (int) digunakan untuk memastikan tipe data berupa angka bulat (Integer).
-    $teks = mysqli_real_escape_string($conn, $_POST['teks']);
-    $brightness = (int)$_POST['brightness'];
-    $speed = (int)$_POST['speed'];
-    $mode = (int)$_POST['mode'];
+    // Tangkap data input dari form dashboard
+    $id_jam = isset($_POST['id_jam']) ? (int)$_POST['id_jam'] : 0;
+    $teks = isset($_POST['teks']) ? mysqli_real_escape_string($conn, $_POST['teks']) : 'Kala.Clock Ready';
+    $brightness = isset($_POST['brightness']) ? (int)$_POST['brightness'] : 150;
+    $speed = isset($_POST['speed']) ? (int)$_POST['speed'] : 40;
+    $mode = isset($_POST['mode']) ? (int)$_POST['mode'] : 1;
     
-    // 4. Menulis Perintah SQL.
-    // Kita gunakan UPDATE untuk memperbarui baris data yang ada pada id=1 (kita tidak menggunakan INSERT karena alat hanya membaca 1 data seting).
-    $sql = "UPDATE settings_p10 SET teks='$teks', brightness=$brightness, speed=$speed, mode=$mode WHERE setting_id=1";
-    
-    // 5. Eksekusi perintah SQL.
-    if (mysqli_query($conn, $sql)) {
-        // Jika sukses di-update di MySQL, kirimkan pesan sukses.
-        echo "Tersimpan di Database MySQL";
-    } else {
-        // Jika gagal, tampilkan pesan error dari MySQL.
-        echo "Gagal: " . mysqli_error($conn);
+    if ($id_jam <= 0) {
+        echo json_encode(["status" => "error", "message" => "id_jam wajib diisi!"]);
+        exit();
     }
+
+    // Gunakan ON DUPLICATE KEY UPDATE agar jika id_jam sudah ada akan di-UPDATE, 
+    // jika belum ada akan otomatis di-INSERT.
+    $sql = "INSERT INTO settings_p10 (id_jam, teks, brightness, speed, mode) 
+            VALUES ($id_jam, '$teks', $brightness, $speed, $mode)
+            ON DUPLICATE KEY UPDATE 
+                teks = '$teks', 
+                brightness = $brightness, 
+                speed = $speed, 
+                mode = $mode,
+                updated_at = CURRENT_TIMESTAMP";
+
+    if (mysqli_query($conn, $sql)) {
+        echo json_encode([
+            "status" => "success", 
+            "message" => "Pengaturan ID Jam $id_jam berhasil disimpan!",
+            "id_jam" => $id_jam
+        ]);
+    } else {
+        echo json_encode([
+            "status" => "error", 
+            "message" => "Gagal menyimpan: " . mysqli_error($conn)
+        ]);
+    }
+} else {
+        echo json_encode(["status" => "error", "message" => "Metode request harus POST!"]);
 }
 ?>
