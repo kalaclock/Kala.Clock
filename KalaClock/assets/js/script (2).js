@@ -746,16 +746,16 @@ function tambahJadwal() {
 
   const newItem = document.createElement('div');
   newItem.className = 'jadwal-item';
-  newItem.style.cssText = "background-color: var(--bg-subcard); padding: 12px; border-radius: var(--radius-btn); margin-bottom: 8px;";
+  newItem.style.cssText = "background-color: var(--bg-subcard); padding: 12px; border-radius: var(--radius-btn); border: 1px solid var(--border-subtle); margin-bottom: 8px;";
 
   newItem.innerHTML = `
     <div style="display: flex; justify-content-content: space-between; align-items: center; margin-bottom: 8px;">
       <input type="text" value="Jadwal ${jadwalCount}" class="input-nama-jadwal" style="background: transparent; border: none; color: var(--accent-tan); font-size: 11px; font-weight: 700; outline: none; width: 85px; font-family: 'Plus Jakarta Sans';">
       <div style="display: flex; gap: 4px; align-items: center;">
-        <input type="time" class="control-input input-mulai" value="12:00" style="height: 24px; padding: 0 4px;">
+        <input type="time" class="control-input input-mulai" value="12:00" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
         <span style="color: var(--text-muted); font-size: 10px;">-</span>
-        <input type="time" class="control-input input-selesai" value="13:00" style="height: 24px; padding: 0 4px;">
-        <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: transparent; border: none; color: #ff4d4d; cursor: pointer;">✕</button>
+        <input type="time" class="control-input input-selesai" value="13:00" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
+        <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;" title="Hapus;">✕</button>
       </div>
     </div>
     <input type="text" class="control-input input-pesan" placeholder="Ketik pesan jadwal baru..." value="" style="width: 100%;">
