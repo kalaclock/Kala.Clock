@@ -1,20 +1,20 @@
 // ====================================================================
 // KALA.CLOCK — IOT FIRMWARE (ESP8266 + P10 LED MATRIX + RTC + MQTT)
-// Versi dengan dukungan mqtt_topic_status multi-clock:
-//   - Setiap alat memiliki mqtt_topic_status unik (misal KC00, KC01, KC02, dst.)
+// Versi dengan dukungan mqtt_topic multi-clock:
+//   - Setiap alat memiliki mqtt_topic unik (misal KC00, KC01, KC02, dst.)
 //   - Subscribe ke 2 topik:
-//       1. mqtt_topic (KalaClock)    — broadcast untuk semua alat
-//       2. mqtt_topic/mqtt_topic_status (KalaClock/KC00) — spesifik untuk alat ini
-//   - Filter pesan: jika payload JSON punya field "mqtt_topic_status", hanya proses
-//     jika cocok dengan mqtt_topic_status alat ini (atau jika tidak ada field mqtt_topic_status = broadcast)
-//   - Heartbeat kirim JSON {"status":"online","mqtt_topic_status":"KC00"} agar
+//       1. mqtt_topic (KalaClock/{idjam})    — broadcast untuk semua alat
+//       2. mqtt_topic/mqtt_topic_status (KalaClock/{idjam}/status) — spesifik untuk alat ini
+//   - Filter pesan: jika payload JSON punya field "mqtt_topic", hanya proses
+//     jika cocok dengan mqtt_topic alat ini (atau jika tidak ada field mqtt_topic = broadcast)
+//   - Heartbeat kirim JSON {"status":"online","mqtt_topic":"KC00"} agar
 //     web dashboard bisa filter status per jam.
 //
 // Catatan PENTING:
 //   - Nama variabel mqtt_topic dan mqtt_topic_status TIDAK BOLEH diubah
 //     (digunakan oleh web dashboard untuk referensi topik)
 //   - Nilai string boleh diubah di sini jika topik berubah
-//   - mqtt_topic_status bisa diubah sesuai unit alat ini
+//   - mqtt_topic dan mqtt_topic_status bisa diubah sesuai unit alat ini
 // ====================================================================
 
 #include <ESP8266WiFi.h>  // Konektivitas WiFi ESP8266
