@@ -155,7 +155,7 @@ function setClockID(newID) {
 
   // Unsubscribe topik lama jika ID berubah
   if (mqttClient && mqttClient.isConnected() && id_jam && id_jam !== newID) {
-    mqttClient.unsubscribe(mqtt_topic_status);
+    mqttClient.unsubscribe(mqtt_topic);
   }
 
   id_jam = newID;
@@ -166,7 +166,7 @@ function setClockID(newID) {
   loadSavedInputs(newID);
 
   if (mqttClient && mqttClient.isConnected()) {
-    mqttClient.subscribe(mqtt_topic_status);
+    mqttClient.subscribe(mqtt_topic);
   }
 }
 
@@ -434,7 +434,7 @@ function connectMQTTClient() {
       // Subscribe ke topik status alat (dinamis sesuai id_jam)
       mqttClient.subscribe(mqtt_topic_status, {
         onSuccess: function () {
-          console.log("Berhasil subscribe ke mqtt_topic_status:", mqtt_topic_status);
+          console.log("Berhasil subscribe ke mqtt_topic:", mqtt_topic_status);
         }
       });
       // Juga subscribe ke topik cadangan status global
@@ -460,7 +460,7 @@ function pingJam() {
       timestamp: Date.now()
     };
     const msg = new Paho.MQTT.Message(JSON.stringify(pingPayload));
-    msg.destinationName = mqtt_topic;
+    msg.destinationName = mqtt_topic_status;
     mqttClient.send(msg);
   }
 }
