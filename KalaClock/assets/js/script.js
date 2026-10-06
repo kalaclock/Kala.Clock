@@ -11,26 +11,16 @@
 // 7. Notifikasi Toast Sukses Pengiriman Real-Time
 // ==========================================================================
 
-// ==========================================================================
-// BAGIAN 1: KONFIGURASI MQTT & VARIABEL UTAMA
-// Sesuai instruksi: mqtt_topic tetap const, sedangkan id_jam dan mqtt_topic_status
-// menggunakan 'let' sehingga input user saat login langsung mengubah mqtt_topic_status.
-// ==========================================================================
+// ==========================================
+// 1. GLOBAL VARIABLES & CONFIG
+// ==========================================
 const mqtt_broker = "broker.emqx.io";      // Alamat broker MQTT publik EMQX
 const mqtt_port   = 8084;                  // Port WebSocket aman (WSS / SSL)
 
-let id_jam = ''; // Dynamic from login form
+let id_jam = '';
 let mqtt_topic = `KalaClock/${id_jam}`;
 let mqtt_topic_status = `KalaClock/${id_jam}/status`;
-
-// Call this inside your login / change clock ID function
-function setClockID(newID) {
-  id_jam = newID;
-  mqtt_topic = `KalaClock/${id_jam}`;
-  mqtt_topic_status = `KalaClock/${id_jam}/status`;
-}  
-  // Re-subscribe client to new mqtt_topic_status here
-let mqttClient        = null;              // Instance client Paho MQTT
+let mqttClient = null;
 let timezoneOffset    = 8;                 // Default WITA (UTC+8)
 let currentMode       = 4;                 // Default 4: Jam Digital + Teks Bergantian
 let currentBrightness = 80;                // Kecerahan awal (0 - 255)
@@ -39,6 +29,146 @@ let currentSpeed      = 40;                // Kecepatan running text (ms)
 // Variabel untuk mode 4 (alternasi tampilan jam & teks virtual)
 let mode4ShowClock    = true;
 let mode4Timer        = null;
+
+
+// ==========================================
+// 2. AUTO-SAVE & LOAD FUNCTIONS (DISESUAIKAN DENGAN NAMA ID FORM REALS)
+// ==========================================
+
+// Simpan input form ke localStorage khusus ID jam ini
+function saveCurrentInputs() {
+  if (!id_jam) return;
+  
+  // Ambil daftar jadwal aktif
+  let jadwalList = [];
+  document.querySelectorAll('.jadwal-item').forEach(item => {
+    const pesan = item.querySelector('.input-pesan')?.value || '';
+    if (pesan.trim() !== '') {
+      jadwalList.push({
+        nama: item.querySelector('.input-nama-jadwal')?.value || '',
+        mulai: item.querySelector('.input-mulai')?.value || '',
+        selesai: item.querySelector('.input-selesai')?.value || '',
+        pesan: pesan
+      });
+    }
+  });
+
+  const stateData = {
+    teks: document.getElementById('inputTeks')?.value || '',
+    brightness: document.getElementById('inputBrightness')?.value || 80,
+    speed: document.getElementById('inputSpeed')?.value || 40,
+    mode: currentMode,
+    timezone: timezoneOffset,
+    jadwal: jadwalList,
+    tidur: document.getElementById('valWaktuTidur')?.value || '22:00',
+    bangun: document.getElementById('valWaktuBangun')?.value || '04:00',
+    kecerahan_malam: document.getElementById('valKecerahanMalam')?.value || 10,
+    auto_sleep: document.getElementById('valAutoSleep')?.checked || false
+  };
+
+  localStorage.setItem(`kala_clock_state_${id_jam}`, JSON.stringify(stateData));
+  saveInputsToDatabase();
+}
+// Mengirim data input ke API PHP secara otomatis saat user mengetik/mengubah form
+function saveInputsToDatabase() {
+  if (!id_jam) return;
+
+  const formData = new FormData();
+  formData.append('id_jam', id_jam);
+  formData.append('teks', document.getElementById('inputTeks')?.value || '');
+  formData.append('brightness', document.getElementById('inputBrightness')?.value || 80);
+  formData.append('speed', document.getElementById('inputSpeed')?.value || 40);
+  formData.append('mode', currentMode || 4);
+
+  fetch('api/api_simpan.php', {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+    console.log("Autosave DB Status:", data);
+  })
+  .catch(err => console.error("Gagal autosave ke database:", err));
+}
+
+// Muat kembali input tersimpan saat ID jam dipilih/login
+function loadSavedInputs(id_jam) {
+  const saved = localStorage.getItem(`kala_clock_state_${id_jam}`);
+  if (!saved) return;
+
+  try {
+    const data = JSON.parse(saved);
+
+    if (data.teks !== undefined && document.getElementById('inputTeks')) {
+      document.getElementById('inputTeks').value = data.teks;
+      updateTickerText(data.teks);
+    }
+    if (data.brightness !== undefined) setBrightness(data.brightness, true);
+    if (data.speed !== undefined) {
+      setSpeed(data.speed);
+      if (document.getElementById('inputSpeed')) document.getElementById('inputSpeed').value = data.speed;
+    }
+    if (data.mode !== undefined) setDisplayMode(data.mode);
+    if (data.timezone !== undefined) setTimezonePreset(data.timezone);
+
+    // Load Efisiensi & Jadwal
+    if (data.tidur && document.getElementById('valWaktuTidur')) document.getElementById('valWaktuTidur').value = data.tidur;
+    if (data.bangun && document.getElementById('valWaktuBangun')) document.getElementById('valWaktuBangun').value = data.bangun;
+    if (data.kecerahan_malam && document.getElementById('valKecerahanMalam')) document.getElementById('valKecerahanMalam').value = data.kecerahan_malam;
+    if (data.auto_sleep !== undefined && document.getElementById('valAutoSleep')) document.getElementById('valAutoSleep').checked = data.auto_sleep;
+
+    if (data.jadwal && Array.isArray(data.jadwal) && data.jadwal.length > 0) {
+      const container = document.getElementById('wadahJadwal');
+      if (container) {
+        container.innerHTML = ''; // Clear default
+        jadwalCount = 0;
+        data.jadwal.forEach(j => {
+          jadwalCount++;
+          const newItem = document.createElement('div');
+          newItem.className = 'jadwal-item';
+          newItem.style.cssText = "background-color: var(--bg-subcard); padding: 12px; border-radius: var(--radius-btn); border: 1px solid var(--border-subtle); margin-bottom: 8px;";
+          newItem.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <input type="text" value="${j.nama}" class="input-nama-jadwal" style="background: transparent; border: none; color: var(--accent-tan); font-size: 11px; font-weight: 700; outline: none; width: 85px; font-family: 'Plus Jakarta Sans';">
+              <div style="display: flex; gap: 4px; align-items: center;">
+                <input type="time" class="control-input input-mulai" value="${j.mulai}" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
+                <span style="color: var(--text-muted); font-size: 10px;">-</span>
+                <input type="time" class="control-input input-selesai" value="${j.selesai}" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
+                <button onclick="this.parentElement.parentElement.parentElement.remove(); saveCurrentInputs();" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;" title="Hapus;">✕</button>
+              </div>
+            </div>
+            <input type="text" class="control-input input-pesan" placeholder="Ketik pesan jadwal baru..." value="${j.pesan}" style="width: 100%;">
+          `;
+          container.appendChild(newItem);
+        });
+      }
+    }
+  } catch (e) {
+    console.error("Gagal membaca saved state:", e);
+  }
+}
+// ==========================================
+// 3. SET CLOCK ID & MQTT LOGIC
+// ==========================================
+function setClockID(newID) {
+  if (!newID) return;
+
+  // Unsubscribe topik lama jika ID berubah
+  if (mqttClient && mqttClient.isConnected() && id_jam && id_jam !== newID) {
+    mqttClient.unsubscribe(mqtt_topic_status);
+  }
+
+  id_jam = newID;
+  mqtt_topic = `KalaClock/${id_jam}`;
+  mqtt_topic_status = `KalaClock/${id_jam}/status`;
+
+  // --- MEMANGGIL LOAD SAVED INPUTS SAAT LOGIN / GANTI ID ---
+  loadSavedInputs(newID);
+
+  if (mqttClient && mqttClient.isConnected()) {
+    mqttClient.subscribe(mqtt_topic_status);
+  }
+}
 
 // ==========================================================================
 // BAGIAN 2: INISIALISASI JAM ANALOG & DIGITAL (SELALU SINKRON)
@@ -264,7 +394,7 @@ function setupMQTT() {
       
       // Jika pesan berasal dari topik status (id_jam itu sendiri atau KalaClock/status)
       if (
-        message.destinationName === mqtt_topic
+        message.destinationName === mqtt_topic_status
       ) {
         try {
           const data = JSON.parse(message.payloadString);
@@ -302,9 +432,9 @@ function connectMQTTClient() {
       updateStatusDot("dotBroker", true);
 
       // Subscribe ke topik status alat (dinamis sesuai id_jam)
-      mqttClient.subscribe(mqtt_topic, {
+      mqttClient.subscribe(mqtt_topic_status, {
         onSuccess: function () {
-          console.log("Berhasil subscribe ke mqtt_topic:", mqtt_topic);
+          console.log("Berhasil subscribe ke mqtt_topic_status:", mqtt_topic_status);
         }
       });
       // Juga subscribe ke topik cadangan status global
@@ -599,7 +729,7 @@ function kirimSecaraRealTime() {
   if (mqttClient && mqttClient.isConnected()) {
     const msg = new Paho.MQTT.Message(JSON.stringify(payloadObj));
     msg.destinationName = mqtt_topic;
-    msg.retained = true;
+    msg.retained = false;
     mqttClient.send(msg);
     mqttSent = true;
   }
@@ -641,6 +771,85 @@ function showToastNotification(title, message) {
   setTimeout(() => {
     toastWrap.classList.remove("active");
   }, 3800);
+}
+
+// ==========================================
+// FUNGSI MANAJEMEN JADWAL & EFISIENSI
+// ==========================================
+let jadwalCount = 1;
+
+// 1. Fungsi Tambah Baris Jadwal Baru di UI
+function tambahJadwal() {
+  jadwalCount++;
+  const container = document.getElementById('wadahJadwal');
+  if (!container) return;
+
+  const newItem = document.createElement('div');
+  newItem.className = 'jadwal-item';
+  newItem.style.cssText = "background-color: var(--bg-subcard); padding: 12px; border-radius: var(--radius-btn); border: 1px solid var(--border-subtle); margin-bottom: 8px;";
+
+  newItem.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <input type="text" value="Jadwal ${jadwalCount}" class="input-nama-jadwal" style="background: transparent; border: none; color: var(--accent-tan); font-size: 11px; font-weight: 700; outline: none; width: 85px; font-family: 'Plus Jakarta Sans';">
+      <div style="display: flex; gap: 4px; align-items: center;">
+        <input type="time" class="control-input input-mulai" value="12:00" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
+        <span style="color: var(--text-muted); font-size: 10px;">-</span>
+        <input type="time" class="control-input input-selesai" value="13:00" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
+        <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;" title="Hapus;">✕</button>
+      </div>
+    </div>
+    <input type="text" class="control-input input-pesan" placeholder="Ketik pesan jadwal baru..." value="" style="width: 100%;">
+  `;
+
+  container.appendChild(newItem);
+  setTimeout(() => { container.scrollTop = container.scrollHeight; }, 100);
+}
+
+function prosesSimpanJadwal() {
+  const tidur = document.getElementById('valWaktuTidur')?.value || '22:00';
+  const bangun = document.getElementById('valWaktuBangun')?.value || '04:00';
+  const kecerahan = document.getElementById('valKecerahanMalam')?.value || 10;
+  const autoSleep = document.getElementById('valAutoSleep')?.checked || false;
+
+  let jadwalList = [];
+  const jadwalItems = document.querySelectorAll('.jadwal-item');
+  jadwalItems.forEach(item => {
+    const pesan = item.querySelector('.input-pesan')?.value || '';
+    if (pesan.trim() !== '') {
+      jadwalList.push({
+        nama: item.querySelector('.input-nama-jadwal')?.value || '',
+        mulai: item.querySelector('.input-mulai')?.value || '',
+        selesai: item.querySelector('.input-selesai')?.value || '',
+        pesan: pesan
+      });
+    }
+  });
+
+  const dataKirim = {
+    action: "update_jadwal",
+    id_jam: id_jam,
+    efisiensi: { tidur, bangun, kecerahan_malam: kecerahan, auto_sleep: autoSleep },
+    jadwal: jadwalList
+  };
+
+  const payloadString = JSON.stringify(dataKirim);
+
+  if (mqttClient && mqttClient.isConnected()) {
+    let message = new Paho.MQTT.Message(payloadString);
+    message.destinationName = mqtt_topic;
+    message.retained = false; 
+    mqttClient.send(message);
+  }
+
+  if (typeof showToastNotification === 'function') {
+    showToastNotification(
+      "Jadwal & Efisiensi Tersimpan!",
+      "Pengaturan jadwal baru telah berhasil dikirim ke perangkat jam IoT."
+    );
+  } else {
+    alert("Jadwal & Efisiensi Berhasil Dikirim!");
+  }
+  saveCurrentInputs();
 }
 
 // ==========================================================================
@@ -705,6 +914,15 @@ document.addEventListener("DOMContentLoaded", function () {
   // 9. Cek status database berkala
   cekStatusDatabase();
   setInterval(cekStatusDatabase, 12000);
-  
-  
+
+  // 10. Event listener untuk simpan otomatis tiap kali ada perubahan input
+  const inputsToTrack = ['inputTeks', 'inputBrightness', 'inputSpeed'];
+
+  inputsToTrack.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', saveCurrentInputs);
+      el.addEventListener('change', saveCurrentInputs);
+    }
+  });
 });
