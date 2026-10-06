@@ -94,6 +94,14 @@ function saveInputsToDatabase() {
 // Muat kembali input tersimpan saat ID jam dipilih/login
 function loadSavedInputs(id_jam) {
   const saved = localStorage.getItem(`kala_clock_state_${id_jam}`);
+  
+  // Format numeric ID into KC00 string for UI inputs if needed
+    const formattedID = `KC${String(id_jam).padStart(2, '0')}`;
+    const inputIdJam = document.getElementById("loginIdJam");
+  if (inputIdJam) inputIdJam.value = formattedID;
+
+  if (!saved) return;
+    const saved = localStorage.getItem(`kala_clock_state_${id_jam}`);
   if (!saved) return;
 
   try {
@@ -283,38 +291,34 @@ function initAppFlow() {
     loginForm.addEventListener("submit", function (e) {
       e.preventDefault();
 
-      const userVal  = inputUsername.value.trim();
-      const idJamVal = inputIdJam.value.trim().toUpperCase();
+  // --- UPDATED CODE ---
+    const userVal = inputUsername.value.trim();
+    let rawInput = inputIdJam.value.trim().toUpperCase();
 
-      if (!userVal) {
-        alert("Silakan masukkan Username Anda.");
-        inputUsername.focus();
-        return;
-      }
-      if (!idJamVal) {
-        alert("Silakan masukkan ID Jam Anda (contoh: KC00).");
-        inputIdJam.focus();
-        return;
-      }
+  // Strip any "KC" prefix if typed by the user, then parse to integer
+    let numID = parseInt(rawInput.replace(/^KC/i, ''), 10);
+    if (isNaN(numID)) numID = 0;
 
-      // SIMPAN DATA LOGIN & UPDATE TOPIK MQTT (PANGGIL FUNGSI REUSABLE)
-      setClockID(idJamVal);
+  // Save raw integer ID internally
+    setClockID(numID);
 
-      if (checkRemember && checkRemember.checked) {
-        localStorage.setItem("kalaclock_username", userVal);
-        localStorage.setItem("kalaclock_id_jam", idJamVal);
-        localStorage.setItem("kalaclock_remember", "true");
-      } else {
-        localStorage.removeItem("kalaclock_username");
-        localStorage.removeItem("kalaclock_id_jam");
-        localStorage.removeItem("kalaclock_remember");
-      }
+    if (checkRemember && checkRemember.checked) {
+      localStorage.setItem("kalaclock_username", userVal);
+      localStorage.setItem("kalaclock_id_jam", numID);
+      localStorage.setItem("kalaclock_remember", "true");
+  } else {
+      localStorage.removeItem("kalaclock_username");
+      localStorage.removeItem("kalaclock_id_jam");
+      localStorage.removeItem("kalaclock_remember");
+  }
 
-      // Update Tampilan Info di Dashboard
-      const displayIdJamEl = document.getElementById("displayIdJam");
-      const userGreetingEl = document.getElementById("userGreeting");
-      if (displayIdJamEl) displayIdJamEl.textContent = id_jam;
-      if (userGreetingEl) userGreetingEl.textContent = userVal;
+  // Display as "KC00", "KC01", "KC10" formatted on the UI
+  const formattedID = `KC${String(id_jam).padStart(2, '0')}`;
+  const displayIdJamEl = document.getElementById("displayIdJam");
+  const userGreetingEl = document.getElementById("userGreeting");
+
+  if (displayIdJamEl) displayIdJamEl.textContent = formattedID;
+  if (userGreetingEl) userGreetingEl.textContent = userVal;
 
       // Hubungkan MQTT dengan ID Jam baru
       setupMQTT();
@@ -335,7 +339,7 @@ function showLoginCountdownModal() {
   if (!modalOverlay || !countdownEl) return;
 
   modalOverlay.classList.add("active");
-  let timeLeft = 5;
+  let timeLeft = 3;
   countdownEl.textContent = timeLeft;
 
   const timerInterval = setInterval(() => {
