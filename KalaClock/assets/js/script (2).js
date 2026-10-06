@@ -99,9 +99,6 @@ function loadSavedInputs(id_jam) {
     const formattedID = `KC${String(id_jam).padStart(2, '0')}`;
     const inputIdJam = document.getElementById("loginIdJam");
   if (inputIdJam) inputIdJam.value = formattedID;
-
-  if (!saved) return;
-    const saved = localStorage.getItem(`kala_clock_state_${id_jam}`);
   if (!saved) return;
 
   try {
