@@ -155,7 +155,7 @@ function setClockID(newID) {
 
   // Unsubscribe topik lama jika ID berubah
   if (mqttClient && mqttClient.isConnected() && id_jam && id_jam !== newID) {
-    mqttClient.unsubscribe(mqtt_topic_status);
+    mqttClient.unsubscribe(mqtt_topic);
   }
 
   id_jam = newID;
@@ -166,7 +166,7 @@ function setClockID(newID) {
   loadSavedInputs(newID);
 
   if (mqttClient && mqttClient.isConnected()) {
-    mqttClient.subscribe(mqtt_topic_status);
+    mqttClient.subscribe(mqtt_topic);
   }
 }
 
@@ -394,7 +394,7 @@ function setupMQTT() {
       
       // Jika pesan berasal dari topik status (id_jam itu sendiri atau KalaClock/status)
       if (
-        message.destinationName === mqtt_topic_status
+        message.destinationName === mqtt_topic
       ) {
         try {
           const data = JSON.parse(message.payloadString);
@@ -432,13 +432,13 @@ function connectMQTTClient() {
       updateStatusDot("dotBroker", true);
 
       // Subscribe ke topik status alat (dinamis sesuai id_jam)
-      mqttClient.subscribe(mqtt_topic_status, {
+      mqttClient.subscribe(mqtt_topic, {
         onSuccess: function () {
-          console.log("Berhasil subscribe ke mqtt_topic_status:", mqtt_topic_status);
+          console.log("Berhasil subscribe ke mqtt_topic:", mqtt_topic);
         }
       });
       // Juga subscribe ke topik cadangan status global
-      mqttClient.subscribe(`KalaClock/${id_jam}/status`);
+      mqttClient.subscribe(`KalaClock/${id_jam}`);
 
       // Kirim ping untuk mengecek respons unit jam
       pingJam();
