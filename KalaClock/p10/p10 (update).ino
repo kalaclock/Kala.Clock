@@ -107,7 +107,7 @@ struct JadwalItem {
   String pesan;
 };
 
-#define MAX_JADWAL 5
+#define MAX_JADWAL 10
 JadwalItem daftarJadwal[MAX_JADWAL];
 int jumlahJadwal = 0;
 
@@ -291,7 +291,7 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
   Serial.print("]: ");
   Serial.println(pesanMasuk);
 
-  StaticJsonDocument<1024> doc;
+  DynamicJsonDocument doc(2048);
   DeserializationError error = deserializeJson(doc, pesanMasuk);
 
   if (!error) {
@@ -471,6 +471,11 @@ void periksaJadwalDanEfisiensi() {
   ambilWaktuSekarang(j, m, d, hr, bl, th);
   int menitSekarang = j * 60 + m;
 
+  // Simpan backup teks utama dari web jika belum ada
+  if (teksUtamaBackup == "" && !adaJadwalAktif) {
+    teksUtamaBackup = teks_berjalan;
+  }
+
   // 1. INSIALISASI BACKUP TEKS UTAMA
   if (teksUtamaBackup == "") {
     teksUtamaBackup = teks_berjalan;
@@ -589,7 +594,7 @@ void setup() {
     if (LittleFS.exists("/config.json")) {
       File file = LittleFS.open("/config.json", "r");
       if (file) {
-        StaticJsonDocument<512> doc;
+        DynamicJsonDocument doc(2048);
         if (!deserializeJson(doc, file)) {
           if (doc.containsKey("teks"))       teks_berjalan     = doc["teks"].as<String>();
           if (doc.containsKey("brightness")) tingkat_kecerahan = doc["brightness"];
