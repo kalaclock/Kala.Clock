@@ -264,7 +264,7 @@ function setupMQTT() {
       
       // Jika pesan berasal dari topik status (id_jam itu sendiri atau KalaClock/status)
       if (
-        message.destinationName === mqtt_topic_status
+        message.destinationName === mqtt_topic
       ) {
         try {
           const data = JSON.parse(message.payloadString);
@@ -302,9 +302,9 @@ function connectMQTTClient() {
       updateStatusDot("dotBroker", true);
 
       // Subscribe ke topik status alat (dinamis sesuai id_jam)
-      mqttClient.subscribe(mqtt_topic_status, {
+      mqttClient.subscribe(mqtt_topic, {
         onSuccess: function () {
-          console.log("Berhasil subscribe ke mqtt_topic_status:", mqtt_topic_status);
+          console.log("Berhasil subscribe ke mqtt_topic:", mqtt_topic);
         }
       });
       // Juga subscribe ke topik cadangan status global
