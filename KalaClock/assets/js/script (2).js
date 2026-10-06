@@ -394,7 +394,7 @@ function setupMQTT() {
       
       // Jika pesan berasal dari topik status (id_jam itu sendiri atau KalaClock/status)
       if (
-        message.destinationName === mqtt_topic
+        message.destinationName === mqtt_topic_status
       ) {
         try {
           const data = JSON.parse(message.payloadString);
