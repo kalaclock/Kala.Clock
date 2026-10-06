@@ -432,13 +432,13 @@ function connectMQTTClient() {
       updateStatusDot("dotBroker", true);
 
       // Subscribe ke topik status alat (dinamis sesuai id_jam)
-      mqttClient.subscribe(mqtt_topic, {
+      mqttClient.subscribe(mqtt_topic_status, {
         onSuccess: function () {
-          console.log("Berhasil subscribe ke mqtt_topic:", mqtt_topic);
+          console.log("Berhasil subscribe ke mqtt_topic:", mqtt_topic_status);
         }
       });
       // Juga subscribe ke topik cadangan status global
-      mqttClient.subscribe(`KalaClock/${id_jam}`);
+      mqttClient.subscribe(`KalaClock/${id_jam}/status`);
 
       // Kirim ping untuk mengecek respons unit jam
       pingJam();
@@ -460,7 +460,7 @@ function pingJam() {
       timestamp: Date.now()
     };
     const msg = new Paho.MQTT.Message(JSON.stringify(pingPayload));
-    msg.destinationName = mqtt_topic;
+    msg.destinationName = mqtt_topic_status;
     mqttClient.send(msg);
   }
 }
