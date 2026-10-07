@@ -17,7 +17,7 @@
 const mqtt_broker = "broker.emqx.io";      // Alamat broker MQTT publik EMQX
 const mqtt_port   = 8084;                  // Port WebSocket aman (WSS / SSL)
 
-let id_jam = '';
+let id_jam = localStorage.getItem('kalaclock_id_jam') || 'KC00';
 let mqtt_topic = `KalaClock/${id_jam}`;
 let mqtt_topic_status = `KalaClock/${id_jam}/status`;
 let mqttClient = null;
@@ -824,6 +824,39 @@ function prosesSimpanJadwal() {
       });
     }
   });
+
+  const activeIdJam = id_jam || document.getElementById('displayIdJam')?.innerText || 'KC00';
+
+  const dataKirim = {
+    cmd: "update_jadwal",
+    action: "update_jadwal",
+    id_jam: activeIdJam,
+    efisiensi: {
+      tidur: tidur,
+      bangun: bangun,
+      kecerahan_malam: kecerahan,
+      auto_sleep: autoSleep
+    },
+    jadwal: jadwalList
+  };
+
+  const payloadString = JSON.stringify(dataKirim);
+  console.log("Kirim ke MQTT:", payloadString);
+
+  if (mqttClient && mqttClient.isConnected()) {
+    let message = new Paho.MQTT.Message(payloadString);
+    message.destinationName = `KalaClock/${activeIdJam}`;
+    mqttClient.send(message);
+
+    if (typeof showToastNotification === 'function') {
+      showToastNotification("Jadwal Tersimpan!", `Berhasil mengirim ${jadwalList.length} jadwal.`);
+    } else {
+      alert("Jadwal Berhasil Dikirim!");
+    }
+  } else {
+    alert("Koneksi MQTT belum terhubung!");
+  }
+}
 
   const dataKirim = {
     action: "update_jadwal",
