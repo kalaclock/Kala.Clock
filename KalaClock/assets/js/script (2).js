@@ -71,10 +71,11 @@ function saveCurrentInputs() {
 }
 // Mengirim data input ke API PHP secara otomatis saat user mengetik/mengubah form
 function saveInputsToDatabase() {
-  if (!id_jam) return;
+  const activeIdJam = id_jam || localStorage.getItem('kalaclock_id_jam') || document.getElementById('displayIdJam')?.innerText || 'KC00';
+  if (!activeIdJam) return;
 
   const formData = new FormData();
-  formData.append('id_jam', id_jam);
+  formData.append('id_jam', activeIdJam);
   formData.append('teks', document.getElementById('inputTeks')?.value || '');
   formData.append('brightness', document.getElementById('inputBrightness')?.value || 80);
   formData.append('speed', document.getElementById('inputSpeed')?.value || 40);
