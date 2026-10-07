@@ -856,6 +856,7 @@ function prosesSimpanJadwal() {
   } else {
     alert("Koneksi MQTT belum terhubung!");
   }
+  saveCurrentInputs();
 }
 
   const dataKirim = {
