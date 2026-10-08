@@ -1,20 +1,20 @@
 // ====================================================================
 // KALA.CLOCK — IOT FIRMWARE (ESP8266 + P10 LED MATRIX + RTC + MQTT)
-// Versi dengan dukungan mqtt_topic_status multi-clock:
-//   - Setiap alat memiliki mqtt_topic_status unik (misal KC00, KC01, KC02, dst.)
+// Versi dengan dukungan mqtt_topic multi-clock:
+//   - Setiap alat memiliki mqtt_topic unik (misal KC00, KC01, KC02, dst.)
 //   - Subscribe ke 2 topik:
-//       1. mqtt_topic (KalaClock)    — broadcast untuk semua alat
-//       2. mqtt_topic/mqtt_topic_status (KalaClock/KC00) — spesifik untuk alat ini
-//   - Filter pesan: jika payload JSON punya field "mqtt_topic_status", hanya proses
-//     jika cocok dengan mqtt_topic_status alat ini (atau jika tidak ada field mqtt_topic_status = broadcast)
-//   - Heartbeat kirim JSON {"status":"online","mqtt_topic_status":"KC00"} agar
+//       1. mqtt_topic (KalaClock/{idjam})    — broadcast untuk semua alat
+//       2. mqtt_topic/mqtt_topic_status (KalaClock/{idjam}/status) — spesifik untuk alat ini
+//   - Filter pesan: jika payload JSON punya field "mqtt_topic", hanya proses
+//     jika cocok dengan mqtt_topic alat ini (atau jika tidak ada field mqtt_topic = broadcast)
+//   - Heartbeat kirim JSON {"status":"online","mqtt_topic":"KC00"} agar
 //     web dashboard bisa filter status per jam.
 //
 // Catatan PENTING:
 //   - Nama variabel mqtt_topic dan mqtt_topic_status TIDAK BOLEH diubah
 //     (digunakan oleh web dashboard untuk referensi topik)
 //   - Nilai string boleh diubah di sini jika topik berubah
-//   - mqtt_topic_status bisa diubah sesuai unit alat ini
+//   - mqtt_topic dan mqtt_topic_status bisa diubah sesuai unit alat ini
 // ====================================================================
 
 #include <ESP8266WiFi.h>  // Konektivitas WiFi ESP8266
@@ -91,13 +91,33 @@ int    panjang_layar   = 32;
 int    mode_tampilan   = 4;    // 1=Kiri, 2=Statis, 3=Kanan, 4=Jam+Teks
 int    kecepatan_scroll= 40;   // ms per geser
 int    tingkat_kecerahan=150;  // 0-255, default 100
-int    timezone_offset = -8;    // UTC+8 (WITA)
+int    timezone_offset = 8;    // UTC+8 (WITA)
 
 // Timer internal fallback jika RTC tidak terpasang
 unsigned long detikWaktuInternal = 0;
 unsigned long millisSebelumnya   = 0;
 
 volatile boolean teksSedangDiupdate = false;
+
+// --- STRUKTUR DATA JADWAL & EFISIENSI ---
+struct JadwalItem {
+  String nama;
+  int jamMulai, menitMulai;
+  int jamSelesai, menitSelesai;
+  String pesan;
+};
+
+#define MAX_JADWAL 10
+JadwalItem daftarJadwal[MAX_JADWAL];
+int jumlahJadwal = 0;
+
+// Efisiensi Energi (Night Mode)
+bool efisiensiAktif = false;
+int jamTidur = 22, menitTidur = 0;
+int jamBangun = 5, menitBangun = 0;
+int kecerahanMalam = 15;
+bool autoSleep = false;
+String teksUtamaBackup = "";
 
 // ============================================================
 // SECTION 7: HELPER FUNCTIONS
@@ -271,7 +291,7 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
   Serial.print("]: ");
   Serial.println(pesanMasuk);
 
-  StaticJsonDocument<512> doc;
+  DynamicJsonDocument doc(4096);
   DeserializationError error = deserializeJson(doc, pesanMasuk);
 
   if (!error) {
@@ -304,13 +324,14 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
     teksSedangDiupdate = true;
 
     // ---- 1. Update Teks Berjalan ----
-    if (doc.containsKey("teks")) {
-      String teks_baru = doc["teks"].as<String>();
-      if (teks_baru != "") {
-        teks_berjalan = teks_baru;
-        posisi_X = panjang_layar; // Reset posisi ke awal
-      }
+  if (doc.containsKey("teks")) {
+    String teks_baru = doc["teks"].as<String>();
+    if (teks_baru != "") {
+      teksUtamaBackup = teks_baru; // SIMPAN JUGA KE BACKUP
+      teks_berjalan = teks_baru;
+      posisi_X = panjang_layar; // Reset posisi ke awal
     }
+  }
 
     // ---- 2. Update Kecerahan & Daya Layar ----
     if (doc.containsKey("brightness")) {
@@ -371,6 +392,49 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
       }
     }
 
+   // ---- 7. Update Jadwal & Efisiensi Energi ----
+bool isUpdateJadwal = (doc.containsKey("cmd") && doc["cmd"].as<String>() == "update_jadwal") ||
+                      (doc.containsKey("action") && doc["action"].as<String>() == "update_jadwal");
+
+if (isUpdateJadwal) {
+  
+  // Baca Efisiensi Energi (Night Mode)
+  if (doc.containsKey("efisiensi")) {
+    JsonObject eff = doc["efisiensi"];
+    String t = eff["tidur"].as<String>();
+    String b = eff["bangun"].as<String>();
+    jamTidur = t.substring(0, 2).toInt();
+    menitTidur = t.substring(3, 5).toInt();
+    jamBangun = b.substring(0, 2).toInt();
+    menitBangun = b.substring(3, 5).toInt();
+    kecerahanMalam = eff["kecerahan_malam"].as<int>();
+    autoSleep = eff["auto_sleep"].as<bool>();
+    efisiensiAktif = true;
+  }
+
+  // Hapus/Kosongkan jadwal lama terlebih dahulu
+  jumlahJadwal = 0; 
+
+  // Baca Array Jadwal Pesan Baru (jika ada)
+  if (doc.containsKey("jadwal")) {
+    JsonArray arr = doc["jadwal"].as<JsonArray>();
+    for (JsonObject item : arr) {
+      if (jumlahJadwal < MAX_JADWAL) {
+        String m = item["mulai"].as<String>();
+        String s = item["selesai"].as<String>();
+        
+        daftarJadwal[jumlahJadwal].nama = item["nama"].as<String>();
+        daftarJadwal[jumlahJadwal].jamMulai = m.substring(0, 2).toInt();
+        daftarJadwal[jumlahJadwal].menitMulai = m.substring(3, 5).toInt();
+        daftarJadwal[jumlahJadwal].jamSelesai = s.substring(0, 2).toInt();
+        daftarJadwal[jumlahJadwal].menitSelesai = s.substring(3, 5).toInt();
+        daftarJadwal[jumlahJadwal].pesan = item["pesan"].as<String>();
+        jumlahJadwal++;
+      }
+    }
+  }
+  Serial.printf("Jadwal diperbarui! Total jadwal aktif: %d\n", jumlahJadwal);
+}
     teksSedangDiupdate = false;
 
     // Simpan ke Flash LittleFS
@@ -379,6 +443,70 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
       serializeJson(doc, f);
       f.close();
       Serial.println("Konfigurasi disimpan ke LittleFS.");
+    }
+  } else {
+    Serial.println("Gagal parse JSON MQTT.");
+  }
+}
+
+void periksaJadwalDanEfisiensi() {
+  static unsigned long lastCheck = 0;
+  if (millis() - lastCheck < 1000) return; // Cek setiap 1 detik
+  lastCheck = millis();
+
+  int j, m, d, hr, bl, th;
+  ambilWaktuSekarang(j, m, d, hr, bl, th);
+  int menitSekarang = (j * 60) + m;
+
+  bool adaJadwalAktif = false;
+  String pesanJadwalKetemu = "";
+
+  for (int i = 0; i < jumlahJadwal; i++) {
+    int mulai = (daftarJadwal[i].jamMulai * 60) + daftarJadwal[i].menitMulai;
+    int selesai = (daftarJadwal[i].jamSelesai * 60) + daftarJadwal[i].menitSelesai;
+
+    if (menitSekarang >= mulai && menitSekarang < selesai) {
+      pesanJadwalKetemu = daftarJadwal[i].pesan;
+      adaJadwalAktif = true;
+      break; 
+    }
+  }
+
+  if (adaJadwalAktif) {
+    if (teks_berjalan != pesanJadwalKetemu) {
+      teks_berjalan = pesanJadwalKetemu;
+      posisi_X = panjang_layar;
+    }
+  } else {
+    // Revert to Main Backup Text during gaps or when schedules complete
+    if (teksUtamaBackup != "" && teks_berjalan != teksUtamaBackup) {
+      teks_berjalan = teksUtamaBackup;
+      posisi_X = panjang_layar;
+    }
+  }
+
+  // 2. EVALUASI EFISIENSI ENERGI (NIGHT MODE)
+  if (efisiensiAktif) {
+    int menitMulaiTidur = (jamTidur * 60) + menitTidur;
+    int menitSelesaiTidur = (jamBangun * 60) + menitBangun;
+    bool isMalam = false;
+
+    if (menitMulaiTidur > menitSelesaiTidur) {
+      // Lewat tengah malam (misal 22:00 - 05:00)
+      isMalam = (menitSekarang >= menitMulaiTidur || menitSekarang < menitSelesaiTidur);
+    } else {
+      isMalam = (menitSekarang >= menitMulaiTidur && menitSekarang < menitSelesaiTidur);
+    }
+
+    if (isMalam) {
+      if (autoSleep) {
+        Disp.setBrightness(0);
+        Disp.clear();
+      } else {
+        Disp.setBrightness(kecerahanMalam);
+      }
+    } else {
+      Disp.setBrightness(tingkat_kecerahan);
     }
   }
 }
@@ -446,7 +574,7 @@ void setup() {
     if (LittleFS.exists("/config.json")) {
       File file = LittleFS.open("/config.json", "r");
       if (file) {
-        StaticJsonDocument<512> doc;
+        DynamicJsonDocument doc(4096);
         if (!deserializeJson(doc, file)) {
           if (doc.containsKey("teks"))       teks_berjalan     = doc["teks"].as<String>();
           if (doc.containsKey("brightness")) tingkat_kecerahan = doc["brightness"];
@@ -498,6 +626,8 @@ void setup() {
 // ============================================================
 
 void loop() {
+  periksaJadwalDanEfisiensi();
+
   if (WiFi.status() == WL_CONNECTED) {
     // Pastikan MQTT tetap terhubung
     if (!mqttClient.connected()) {
