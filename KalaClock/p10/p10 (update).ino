@@ -393,8 +393,10 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
     }
 
    // ---- 7. Update Jadwal & Efisiensi Energi ----
-String action = doc["action"];
-if (action == "update_jadwal") {
+bool isUpdateJadwal = (doc.containsKey("cmd") && doc["cmd"].as<String>() == "update_jadwal") ||
+                      (doc.containsKey("action") && doc["action"].as<String>() == "update_jadwal");
+
+if (isUpdateJadwal) {
   
   // Baca Efisiensi Energi (Night Mode)
   if (doc.containsKey("efisiensi")) {
