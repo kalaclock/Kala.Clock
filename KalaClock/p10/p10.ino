@@ -120,7 +120,7 @@ bool autoSleep = false;
 String teksUtamaBackup = "";
 
 // ============================================================
-// SECTION 7: HELPER FUNCTIONS
+// SECTION : HELPER FUNCTIONS
 // ============================================================
 
 /** Format angka jadi dua digit: 5 → "05" */
@@ -226,7 +226,7 @@ void refreshP10() {
       static unsigned long waktuGantiMode = 0;
       static bool tampilkanJam = true;
 
-      // 1. Hitung panjang teks dalam piksel (font Mono5x7 lebarnya 6px per karakter)
+      // 1. Hitung panjang teks dalam piksel (font Mono5x lebarnya 6px per karakter)
       int panjang_teks_px = teks_berjalan.length() * 6;
 
       // 2. Hitung total jarak gulir dari luar kanan sampai habis ke luar kiri
@@ -376,7 +376,7 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
           String dateStr = doc["date"].as<String>();
           if (dateStr.length() >= 10) {
             th = dateStr.substring(0, 4).toInt();
-            bl = dateStr.substring(5, 7).toInt();
+            bl = dateStr.substring(5, ).toInt();
             hr = dateStr.substring(8, 10).toInt();
           }
         }
@@ -393,47 +393,70 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
     }
 
    // ---- 7. Update Jadwal & Efisiensi Energi ----
+// ---- 7. Update Jadwal & Efisiensi Energi ----
 bool isUpdateJadwal = (doc.containsKey("cmd") && doc["cmd"].as<String>() == "update_jadwal") ||
                       (doc.containsKey("action") && doc["action"].as<String>() == "update_jadwal");
 
 if (isUpdateJadwal) {
-  
-  // Baca Efisiensi Energi (Night Mode)
+  // 1. Read Efficiency
   if (doc.containsKey("efisiensi")) {
     JsonObject eff = doc["efisiensi"];
-    String t = eff["tidur"].as<String>();
-    String b = eff["bangun"].as<String>();
+    String t = eff["tidur"] | "22:00";
+    String b = eff["bangun"] | "04:00";
     jamTidur = t.substring(0, 2).toInt();
     menitTidur = t.substring(3, 5).toInt();
     jamBangun = b.substring(0, 2).toInt();
     menitBangun = b.substring(3, 5).toInt();
-    kecerahanMalam = eff["kecerahan_malam"].as<int>();
-    autoSleep = eff["auto_sleep"].as<bool>();
+    kecerahanMalam = eff["kecerahan_malam"] | 10;
+    autoSleep = eff["auto_sleep"] | false;
     efisiensiAktif = true;
   }
 
-  // Hapus/Kosongkan jadwal lama terlebih dahulu
+  // 2. Clear old schedules
   jumlahJadwal = 0; 
 
-  // Baca Array Jadwal Pesan Baru (jika ada)
-  if (doc.containsKey("jadwal")) {
+  // 3. Read Array SAFELY
+  if (doc.containsKey("jadwal") && doc["jadwal"].is<JsonArray>()) {
     JsonArray arr = doc["jadwal"].as<JsonArray>();
-    for (JsonObject item : arr) {
+    
+    for (JsonVariant v : arr) {
+      if (!v.is<JsonObject>()) continue;
+      JsonObject item = v.as<JsonObject>();
+
       if (jumlahJadwal < MAX_JADWAL) {
-        String m = item["mulai"].as<String>();
-        String s = item["selesai"].as<String>();
-        
-        daftarJadwal[jumlahJadwal].nama = item["nama"].as<String>();
-        daftarJadwal[jumlahJadwal].jamMulai = m.substring(0, 2).toInt();
-        daftarJadwal[jumlahJadwal].menitMulai = m.substring(3, 5).toInt();
-        daftarJadwal[jumlahJadwal].jamSelesai = s.substring(0, 2).toInt();
-        daftarJadwal[jumlahJadwal].menitSelesai = s.substring(3, 5).toInt();
-        daftarJadwal[jumlahJadwal].pesan = item["pesan"].as<String>();
-        jumlahJadwal++;
+        String m = item["mulai"] | "00:00";
+        String s = item["selesai"] | "00:00";
+        String msg = item["pesan"] | "";
+
+        if (msg.length() > 0) {
+          // Robust 24h Time Parsing (Handles "9:00" and "09:00")
+          int idxColonM = m.indexOf(':');
+          int idxColonS = s.indexOf(':');
+
+          if (idxColonM != -1 && idxColonS != -1) {
+            daftarJadwal[jumlahJadwal].nama = item["nama"] | ("Jadwal " + String(jumlahJadwal + 1));
+            daftarJadwal[jumlahJadwal].jamMulai = m.substring(0, idxColonM).toInt();
+            daftarJadwal[jumlahJadwal].menitMulai = m.substring(idxColonM + 1).toInt();
+            daftarJadwal[jumlahJadwal].jamSelesai = s.substring(0, idxColonS).toInt();
+            daftarJadwal[jumlahJadwal].menitSelesai = s.substring(idxColonS + 1).toInt();
+            daftarJadwal[jumlahJadwal].pesan = msg;
+            
+            Serial.printf("--> Loaded Schedule #%d [%s]: %02d:%02d to %02d:%02d -> Msg: %s\n",
+                          jumlahJadwal + 1,
+                          daftarJadwal[jumlahJadwal].nama.c_str(),
+                          daftarJadwal[jumlahJadwal].jamMulai,
+                          daftarJadwal[jumlahJadwal].menitMulai,
+                          daftarJadwal[jumlahJadwal].jamSelesai,
+                          daftarJadwal[jumlahJadwal].menitSelesai,
+                          daftarJadwal[jumlahJadwal].pesan.c_str());
+
+            jumlahJadwal++;
+          }
+        }
       }
     }
   }
-  Serial.printf("Jadwal diperbarui! Total jadwal aktif: %d\n", jumlahJadwal);
+  Serial.printf("Jadwal updated successfully! Active count: %d\n", jumlahJadwal);
 }
     teksSedangDiupdate = false;
 
