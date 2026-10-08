@@ -807,13 +807,20 @@ function tambahJadwal() {
         <input type="time" class="control-input input-mulai" value="12:00" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
         <span style="color: var(--text-muted); font-size: 10px;">-</span>
         <input type="time" class="control-input input-selesai" value="13:00" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
-        <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;" title="Hapus;">✕</button>
+        <button onclick="this.parentElement.parentElement.parentElement.remove(); saveCurrentInputs();" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;" title="Hapus;">✕</button>
       </div>
     </div>
     <input type="text" class="control-input input-pesan" placeholder="Ketik pesan jadwal baru..." value="" style="width: 100%;">
   `;
 
   container.appendChild(newItem);
+
+  // Attach auto-save listeners to newly added elements
+  newItem.querySelectorAll('input').forEach(input => {
+    input.addEventListener('input', saveCurrentInputs);
+    input.addEventListener('change', saveCurrentInputs);
+  });
+
   setTimeout(() => { container.scrollTop = container.scrollHeight; }, 100);
 }
 
