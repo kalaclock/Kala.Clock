@@ -71,8 +71,21 @@ function saveCurrentInputs() {
 }
 // Mengirim data input ke API PHP secara otomatis saat user mengetik/mengubah form
 function saveInputsToDatabase() {
-  const activeIdJam = id_jam || localStorage.getItem('kalaclock_id_jam') || document.getElementById('displayIdJam')?.innerText || 'KC00';
-  if (!activeIdJam) return;
+  // 1. Ambil ID Jam dari berbagai sumber cadangan
+  let activeIdJam = id_jam;
+  if (!activeIdJam || activeIdJam.trim() === '') {
+    activeIdJam = localStorage.getItem('kalaclock_id_jam');
+  }
+  if (!activeIdJam || activeIdJam.trim() === '') {
+    const elDisplay = document.getElementById('displayIdJam');
+    if (elDisplay) activeIdJam = elDisplay.innerText.trim();
+  }
+
+  // 2. JIKA TETAP KOSONG / TULISAN DEFAULT, BATALKAN AUTOSAVE (Mencegah Error PHP)
+  if (!activeIdJam || activeIdJam === '' || activeIdJam === '{KC00}') {
+    console.log("Autosave ditunda: ID Jam belum siap.");
+    return;
+  }
 
   const formData = new FormData();
   formData.append('id_jam', activeIdJam);
@@ -336,7 +349,7 @@ function showLoginCountdownModal() {
   if (!modalOverlay || !countdownEl) return;
 
   modalOverlay.classList.add("active");
-  let timeLeft = 5;
+  let timeLeft = 3;
   countdownEl.textContent = timeLeft;
 
   const timerInterval = setInterval(() => {
@@ -399,7 +412,7 @@ function setupMQTT() {
       ) {
         try {
           const data = JSON.parse(message.payloadString);
-          if (data.status === "online" || (data.id_jam && data.id_jam === id_jam)) {
+          if (data.status === "online" || (data.id_jam && data.id_jam === `KalaClock/${id_jam}/status`)) {
             updateStatusDot("dotJam", true);
           } else if (data.status === "offline") {
             updateStatusDot("dotJam", false);
@@ -432,14 +445,12 @@ function connectMQTTClient() {
       console.log("Berhasil terhubung ke Broker MQTT EMQX:", mqtt_broker);
       updateStatusDot("dotBroker", true);
 
-      // Subscribe ke topik status alat (dinamis sesuai id_jam)
+      // Subscribe ke topik alat (dinamis sesuai id_jam)
       mqttClient.subscribe(mqtt_topic_status, {
         onSuccess: function () {
-          console.log("Berhasil subscribe ke mqtt_topic:", mqtt_topic_status);
+          console.log("Berhasil subscribe ke mqtt_topic_status:", mqtt_topic_status);
         }
       });
-      // Juga subscribe ke topik cadangan status global
-      mqttClient.subscribe(`KalaClock/${id_jam}/status`);
 
       // Kirim ping untuk mengecek respons unit jam
       pingJam();
@@ -806,6 +817,25 @@ function tambahJadwal() {
   setTimeout(() => { container.scrollTop = container.scrollHeight; }, 100);
 }
 
+// Helper untuk konversi waktu "01:00 PM" atau "01:00" ke format 24 Jam ("13:00")
+function konversiKe24Jam(waktuStr) {
+  if (!waktuStr) return "00:00";
+  
+  // Jika input time browser memberikan format AM/PM
+  let match = waktuStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (match) {
+    let jam = parseInt(match[1]);
+    let menit = match[2];
+    let ampm = match[3] ? match[3].toUpperCase() : null;
+
+    if (ampm === "PM" && jam < 12) jam += 12;
+    if (ampm === "AM" && jam === 12) jam = 0;
+
+    return `${String(jam).padStart(2, '0')}:${menit}`;
+  }
+  return waktuStr;
+}
+
 function prosesSimpanJadwal() {
   const tidur = document.getElementById('valWaktuTidur')?.value || '22:00';
   const bangun = document.getElementById('valWaktuBangun')?.value || '04:00';
@@ -825,40 +855,6 @@ function prosesSimpanJadwal() {
       });
     }
   });
-
-  const activeIdJam = id_jam || document.getElementById('displayIdJam')?.innerText || 'KC00';
-
-  const dataKirim = {
-    cmd: "update_jadwal",
-    action: "update_jadwal",
-    id_jam: activeIdJam,
-    efisiensi: {
-      tidur: tidur,
-      bangun: bangun,
-      kecerahan_malam: kecerahan,
-      auto_sleep: autoSleep
-    },
-    jadwal: jadwalList
-  };
-
-  const payloadString = JSON.stringify(dataKirim);
-  console.log("Kirim ke MQTT:", payloadString);
-
-  if (mqttClient && mqttClient.isConnected()) {
-    let message = new Paho.MQTT.Message(payloadString);
-    message.destinationName = `KalaClock/${activeIdJam}`;
-    mqttClient.send(message);
-
-    if (typeof showToastNotification === 'function') {
-      showToastNotification("Jadwal Tersimpan!", `Berhasil mengirim ${jadwalList.length} jadwal.`);
-    } else {
-      alert("Jadwal Berhasil Dikirim!");
-    }
-  } else {
-    alert("Koneksi MQTT belum terhubung!");
-  }
-  saveCurrentInputs();
-}
 
   const dataKirim = {
     action: "update_jadwal",
