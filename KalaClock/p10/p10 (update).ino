@@ -625,6 +625,8 @@ void setup() {
   // Inisialisasi MQTT client
   mqttClient.setServer(mqtt_server, mqtt_port);
   mqttClient.setCallback(saatPesanMqttMasuk);
+
+  mqttClient.setBufferSize(2048);
 }
 
 // ============================================================
