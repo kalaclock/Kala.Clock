@@ -91,7 +91,7 @@ int    panjang_layar   = 32;
 int    mode_tampilan   = 4;    // 1=Kiri, 2=Statis, 3=Kanan, 4=Jam+Teks
 int    kecepatan_scroll= 40;   // ms per geser
 int    tingkat_kecerahan=150;  // 0-255, default 100
-int    timezone_offset = -8;    // UTC+8 (WITA)
+int    timezone_offset = 8;    // UTC+8 (WITA)
 
 // Timer internal fallback jika RTC tidak terpasang
 unsigned long detikWaktuInternal = 0;
@@ -435,23 +435,6 @@ if (action == "update_jadwal") {
 }
     teksSedangDiupdate = false;
 
-if (doc.containsKey("id_jam")) {
-  String targetId = doc["id_jam"].as<String>();
-  String unitId = String(mqtt_topic);
-  
-  // Jika mqtt_topic berbentuk KalaClock/KC00, ambil substring ID nya saja (KC00)
-  int slashIdx = unitId.lastIndexOf('/');
-  if (slashIdx != -1) {
-    unitId = unitId.substring(slashIdx + 1);
-  }
-
-  // Cocokkan id_jam
-  if (targetId != unitId && targetId != "BROADCAST" && doc["id_jam"].as<String>() != String(mqtt_topic)) {
-    Serial.println("Pesan diabaikan: id_jam tidak cocok (" + targetId + " != " + unitId + ")");
-    return;
-  }
-}
-    
     // Simpan ke Flash LittleFS
     File f = LittleFS.open("/config.json", "w");
     if (f) {
@@ -459,32 +442,29 @@ if (doc.containsKey("id_jam")) {
       f.close();
       Serial.println("Konfigurasi disimpan ke LittleFS.");
     }
+  } else {
+    Serial.println("Gagal parse JSON MQTT.");
   }
 }
 
 void periksaJadwalDanEfisiensi() {
   static unsigned long lastCheck = 0;
-  if (millis() - lastCheck < 2000) return; // Cek setiap 2 detik
+  if (millis() - lastCheck < 1000) return; // Cek setiap 1 detik
   lastCheck = millis();
 
   int j, m, d, hr, bl, th;
   ambilWaktuSekarang(j, m, d, hr, bl, th);
-  int menitSekarang = j * 60 + m;
+  int menitSekarang = (j * 60) + m;
 
   // Simpan backup teks utama dari web jika belum ada
-  if (teksUtamaBackup == "" && !adaJadwalAktif) {
-    teksUtamaBackup = teks_berjalan;
-  }
-
-  // 1. INSIALISASI BACKUP TEKS UTAMA
   if (teksUtamaBackup == "") {
     teksUtamaBackup = teks_berjalan;
   }
 
   // 2. EVALUASI EFISIENSI ENERGI (NIGHT MODE)
   if (efisiensiAktif) {
-    int menitMulaiTidur = jamTidur * 60 + menitTidur;
-    int menitSelesaiTidur = jamBangun * 60 + menitBangun;
+    int menitMulaiTidur = (jamTidur * 60) + menitTidur;
+    int menitSelesaiTidur = (jamBangun * 60) + menitBangun;
     bool isMalam = false;
 
     if (menitMulaiTidur > menitSelesaiTidur) {
@@ -508,28 +488,34 @@ void periksaJadwalDanEfisiensi() {
 
   // 3. EVALUASI SIARAN PESAN TERJADWAL
   bool adaJadwalAktif = false;
+  String pesanJadwalKetemu = "";
+  
   for (int i = 0; i < jumlahJadwal; i++) {
-    int mulai = daftarJadwal[i].jamMulai * 60 + daftarJadwal[i].menitMulai;
-    int selesai = daftarJadwal[i].jamSelesai * 60 + daftarJadwal[i].menitSelesai;
+    int mulai = (daftarJadwal[i].jamMulai * 60) + daftarJadwal[i].menitMulai;
+    int selesai = (daftarJadwal[i].jamSelesai * 60) + daftarJadwal[i].menitSelesai;
 
-    if (menitSekarang >= mulai && menitSekarang <= selesai) {
-      // Tampilkan pesan jadwal jika jam sekarang berada di dalam rentang
-      if (teks_berjalan != daftarJadwal[i].pesan) {
-        teks_berjalan = daftarJadwal[i].pesan;
-        posisi_X = panjang_layar; // Reset running text dari kanan
-      }
+    if (menitSekarang >= mulai && menitSekarang < selesai) {
+      pesanJadwalKetemu = daftarJadwal[i].pesan;
       adaJadwalAktif = true;
       break; // Ambil jadwal pertama yang cocok
     }
   }
 
+  // Tampilkan pesan jadwal jika ada yang aktif saat ini
+  if (adaJadwalAktif) {
+    if (teks_berjalan != pesanJadwalKetemu) {
+      teks_berjalan = pesanJadwalKetemu;
+      posisi_X = panjang_layar; // Reset running text dari kanan
+    }
+  } else {
+
   // Kembalikan ke teks utama jika TIDAK ADA jadwal yang aktif
-  if (!adaJadwalAktif && teks_berjalan != teksUtamaBackup) {
-    teks_berjalan = teksUtamaBackup;
-    posisi_X = panjang_layar;
+    if (teksUtamaBackup != "" && teks_berjalan != teksUtamaBackup) {
+      teks_berjalan = teksUtamaBackup;
+      posisi_X = panjang_layar;
+    }
   }
 }
-
 // ============================================================
 // SECTION 10: KONEKSI MQTT (dengan LWT / Last Will)
 // LWT (Last Will and Testament): jika alat terputus mendadak,
