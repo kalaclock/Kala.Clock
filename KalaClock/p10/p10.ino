@@ -20,7 +20,7 @@
 #include <ESP8266WiFi.h>  // Konektivitas WiFi ESP8266
 #include <PubSubClient.h> // Library MQTT Client
 #include <DMDESP.h>       // Library Driver P10 LED Matrix
-#include <fonts/Mono5x7.h>// Font Standar P10
+#include <fonts/ElektronMart6x8.h>// Font Standar P10
 #include <Ticker.h>       // Background Refresh Timer
 #include <ArduinoJson.h>  // Parser JSON dari Web Dashboard
 #include <LittleFS.h>     // Sistem File Flash untuk Cadangan Offline
@@ -376,7 +376,7 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
           String dateStr = doc["date"].as<String>();
           if (dateStr.length() >= 10) {
             th = dateStr.substring(0, 4).toInt();
-            bl = dateStr.substring(5, ).toInt();
+            bl = dateStr.substring(5, 0).toInt();
             hr = dateStr.substring(8, 10).toInt();
           }
         }
@@ -614,7 +614,7 @@ void setup() {
   // Konfigurasi dan mulai layar P10
   Disp.start();
   Disp.setBrightness(tingkat_kecerahan);
-  Disp.setFont(Mono5x7);
+  Disp.setFont(ElektronMart6x8);
   panjang_layar = Disp.width();
   posisi_X      = panjang_layar;
 
