@@ -1,14 +1,12 @@
 // ==========================================================================
-// KALA.CLOCK — JAVASCRIPT CONTROLLER LENGKAP
+// KALA.CLOCK — JAVASCRIPT CONTROLLER LENGKAP (VERSI TERINTEGRASI API & ADMIN)
 // Mengatur Seluruh Alur: Loading Screen -> Login Page -> Countdown Modal -> Main Dashboard
 // Fitur:
-// 1. Koneksi MQTT Real-Time (Paho MQTT WebSockets SSL)
-// 2. id_jam dinamis menjadi mqtt_topic_status dengan variabel 'let'
-// 3. Jam Analog (3 Jarum: 1 Merah Terpendek, 1 Putih Terpanjang, 1 Putih Tengah)
-// 4. Jam Digital (Plus Jakarta Sans Light Weight) yang selalu sinkron 100%
-// 5. Layar Simulasi LED Running Text Virtual dengan 4 Mode (Kiri, Statis, Kanan, Jam+Teks)
-// 6. Kontrol Kecerahan, Kecepatan, Mode Tampilan, Zona Waktu, & Kalibrasi
-// 7. Notifikasi Toast Sukses Pengiriman Real-Time
+// 1. Verifikasi Konsumen ke Database MySQL (api/api_login_user.php)
+// 2. Pencatatan Log Akses Real-Time oleh Admin
+// 3. Koneksi MQTT Real-Time (Paho MQTT WebSockets SSL)
+// 4. Jam Analog (3 Jarum) & Jam Digital Sinkron 100%
+// 5. Layar Virtual Running Text 4 Mode, Kecerahan, Kecepatan, & Efisiensi
 // ==========================================================================
 
 // ==========================================
@@ -17,7 +15,7 @@
 const mqtt_broker = "broker.emqx.io";      // Alamat broker MQTT publik EMQX
 const mqtt_port   = 8084;                  // Port WebSocket aman (WSS / SSL)
 
-let id_jam = '';
+let id_jam = localStorage.getItem('kalaclock_id_jam') || 'KC00';
 let mqtt_topic = `KalaClock/${id_jam}`;
 let mqtt_topic_status = `KalaClock/${id_jam}/status`;
 let mqttClient = null;
@@ -26,20 +24,16 @@ let currentMode       = 4;                 // Default 4: Jam Digital + Teks Berg
 let currentBrightness = 80;                // Kecerahan awal (0 - 255)
 let currentSpeed      = 40;                // Kecepatan running text (ms)
 
-// Variabel untuk mode 4 (alternasi tampilan jam & teks virtual)
+// Variabel untuk mode 4
 let mode4ShowClock    = true;
 let mode4Timer        = null;
 
-
 // ==========================================
-// 2. AUTO-SAVE & LOAD FUNCTIONS (DISESUAIKAN DENGAN NAMA ID FORM REALS)
+// 2. AUTO-SAVE & LOAD FUNCTIONS
 // ==========================================
-
-// Simpan input form ke localStorage khusus ID jam ini
 function saveCurrentInputs() {
   if (!id_jam) return;
   
-  // Ambil daftar jadwal aktif
   let jadwalList = [];
   document.querySelectorAll('.jadwal-item').forEach(item => {
     const pesan = item.querySelector('.input-pesan')?.value || '';
@@ -69,12 +63,23 @@ function saveCurrentInputs() {
   localStorage.setItem(`kala_clock_state_${id_jam}`, JSON.stringify(stateData));
   saveInputsToDatabase();
 }
-// Mengirim data input ke API PHP secara otomatis saat user mengetik/mengubah form
+
 function saveInputsToDatabase() {
-  if (!id_jam) return;
+  let activeIdJam = id_jam;
+  if (!activeIdJam || activeIdJam.trim() === '') {
+    activeIdJam = localStorage.getItem('kalaclock_id_jam');
+  }
+  if (!activeIdJam || activeIdJam.trim() === '') {
+    const elDisplay = document.getElementById('displayIdJam');
+    if (elDisplay) activeIdJam = elDisplay.innerText.trim();
+  }
+
+  if (!activeIdJam || activeIdJam === '' || activeIdJam === '{KC00}') {
+    return;
+  }
 
   const formData = new FormData();
-  formData.append('id_jam', id_jam);
+  formData.append('id_jam', activeIdJam);
   formData.append('teks', document.getElementById('inputTeks')?.value || '');
   formData.append('brightness', document.getElementById('inputBrightness')?.value || 80);
   formData.append('speed', document.getElementById('inputSpeed')?.value || 40);
@@ -91,7 +96,6 @@ function saveInputsToDatabase() {
   .catch(err => console.error("Gagal autosave ke database:", err));
 }
 
-// Muat kembali input tersimpan saat ID jam dipilih/login
 function loadSavedInputs(id_jam) {
   const saved = localStorage.getItem(`kala_clock_state_${id_jam}`);
   if (!saved) return;
@@ -111,7 +115,6 @@ function loadSavedInputs(id_jam) {
     if (data.mode !== undefined) setDisplayMode(data.mode);
     if (data.timezone !== undefined) setTimezonePreset(data.timezone);
 
-    // Load Efisiensi & Jadwal
     if (data.tidur && document.getElementById('valWaktuTidur')) document.getElementById('valWaktuTidur').value = data.tidur;
     if (data.bangun && document.getElementById('valWaktuBangun')) document.getElementById('valWaktuBangun').value = data.bangun;
     if (data.kecerahan_malam && document.getElementById('valKecerahanMalam')) document.getElementById('valKecerahanMalam').value = data.kecerahan_malam;
@@ -120,7 +123,7 @@ function loadSavedInputs(id_jam) {
     if (data.jadwal && Array.isArray(data.jadwal) && data.jadwal.length > 0) {
       const container = document.getElementById('wadahJadwal');
       if (container) {
-        container.innerHTML = ''; // Clear default
+        container.innerHTML = '';
         jadwalCount = 0;
         data.jadwal.forEach(j => {
           jadwalCount++;
@@ -147,13 +150,13 @@ function loadSavedInputs(id_jam) {
     console.error("Gagal membaca saved state:", e);
   }
 }
+
 // ==========================================
 // 3. SET CLOCK ID & MQTT LOGIC
 // ==========================================
 function setClockID(newID) {
   if (!newID) return;
 
-  // Unsubscribe topik lama jika ID berubah
   if (mqttClient && mqttClient.isConnected() && id_jam && id_jam !== newID) {
     mqttClient.unsubscribe(mqtt_topic);
   }
@@ -162,7 +165,6 @@ function setClockID(newID) {
   mqtt_topic = `KalaClock/${id_jam}`;
   mqtt_topic_status = `KalaClock/${id_jam}/status`;
 
-  // --- MEMANGGIL LOAD SAVED INPUTS SAAT LOGIN / GANTI ID ---
   loadSavedInputs(newID);
 
   if (mqttClient && mqttClient.isConnected()) {
@@ -171,17 +173,11 @@ function setClockID(newID) {
 }
 
 // ==========================================================================
-// BAGIAN 2: INISIALISASI JAM ANALOG & DIGITAL (SELALU SINKRON)
-// Menghitung sudut rotasi untuk 3 jarum:
-// - Jarum Jam: 1 Jarum Merah, TERPENDEK
-// - Jarum Menit: Putih/Krem, PALING PANJANG
-// - Jarum Detik: Putih, PANJANG DI TENGAH-TENGAH
-// Jam digital menggunakan font 'Plus Jakarta Sans' Light Weight (300).
+// 4. JAM ANALOG & DIGITAL (SELALU SINKRON)
 // ==========================================================================
 function updateClocks() {
   const now = new Date();
   
-  // Konversi waktu lokal ke UTC kemudian sesuaikan dengan timezoneOffset yang dipilih
   const utcMillis = now.getTime() + (now.getTimezoneOffset() * 60000);
   const targetDate = new Date(utcMillis + (3600000 * timezoneOffset));
 
@@ -189,15 +185,10 @@ function updateClocks() {
   const minutes = targetDate.getMinutes();
   const seconds = targetDate.getSeconds();
 
-  // 1. Hitung rotasi jarum jam analog (360 derajat)
-  // Detik: 6 derajat per detik
   const secondDeg = seconds * 6;
-  // Menit: 6 derajat per menit + tambahan pergeseran detik
   const minuteDeg = (minutes * 6) + (seconds * 0.1);
-  // Jam: 30 derajat per jam + tambahan pergeseran menit dan detik
   const hourDeg   = ((hours % 12) * 30) + (minutes * 0.5) + (seconds * (0.5 / 60));
 
-  // Terapkan rotasi ke elemen DOM jarum analog
   const needleHour   = document.getElementById("needleHour");
   const needleMinute = document.getElementById("needleMinute");
   const needleSecond = document.getElementById("needleSecond");
@@ -206,22 +197,19 @@ function updateClocks() {
   if (needleMinute) needleMinute.style.transform = `translateX(-50%) rotate(${minuteDeg}deg)`;
   if (needleSecond) needleSecond.style.transform = `translateX(-50%) rotate(${secondDeg}deg)`;
 
-  // 2. Format string jam digital HH:MM:SS
   const hh = String(hours).padStart(2, "0");
   const mm = String(minutes).padStart(2, "0");
   const ss = String(seconds).padStart(2, "0");
   const timeString = `${hh}:${mm}:${ss}`;
 
-  // Terapkan teks jam ke seluruh display jam digital agar SINKRON
-  const liveDigitalEl = document.getElementById("digitalClockLive"); // Di bawah jam analog (Plus Jakarta Sans Light)
-  const virtualLedEl  = document.getElementById("virtualClock");    // Di dalam simulasi LED P10
-  const rtcBoxEl      = document.getElementById("rtcDigitalClock"); // Di kotak Kalibrasi RTC
+  const liveDigitalEl = document.getElementById("digitalClockLive");
+  const virtualLedEl  = document.getElementById("virtualClock");
+  const rtcBoxEl      = document.getElementById("rtcDigitalClock");
 
   if (liveDigitalEl) liveDigitalEl.textContent = timeString;
   if (virtualLedEl)  virtualLedEl.textContent  = timeString;
   if (rtcBoxEl)      rtcBoxEl.textContent      = timeString;
 
-  // Format tanggal pada layar virtual LED
   const namaHari = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
   const namaBulan = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
   const dateString = `${namaHari[targetDate.getDay()]}, ${String(targetDate.getDate()).padStart(2, "0")} ${namaBulan[targetDate.getMonth()]} ${targetDate.getFullYear()}`;
@@ -230,12 +218,10 @@ function updateClocks() {
   if (virtualDateEl) virtualDateEl.textContent = dateString;
 }
 
-// Inisialisasi 12 penanda jam analog berbentuk kapsul (Capsule Pill Ticks)
 function generateClockTicks() {
   const container = document.getElementById("analogClockFace");
   if (!container) return;
 
-  // Bersihkan elemen lama jika ada
   const existingTicks = container.querySelectorAll(".clock-tick-mark");
   existingTicks.forEach(t => t.remove());
 
@@ -246,14 +232,14 @@ function generateClockTicks() {
     if (isMajor) {
       tick.classList.add("clock-tick-major");
     }
-    // Rotasi setiap penanda sejauh 30 derajat mengelilingi pusat jam
     const angle = i * 30;
     tick.style.transform = `translateX(-50%) rotate(${angle}deg)`;
     container.appendChild(tick);
   }
 }
+
 // ==========================================================================
-// BAGIAN 3: ALUR LOADING SCREEN, LOGIN, DAN COUNTDOWN MODAL
+// 5. ALUR LOGIN DENGAN VALIDASI DATABASE KONSUMEN & LOGGING
 // ==========================================================================
 function initAppFlow() {
   const loginScreen   = document.getElementById("loginScreen");
@@ -261,8 +247,9 @@ function initAppFlow() {
   const inputUsername = document.getElementById("loginUsername");
   const inputIdJam    = document.getElementById("loginIdJam");
   const checkRemember = document.getElementById("loginRemember");
+  const btnLogin      = document.getElementById("btnLogin");
+  const errBox        = document.getElementById("loginConsumerError");
 
-  // Periksa apakah ada akun yang disimpan sebelumnya (Remember Me)
   const savedUsername = localStorage.getItem("kalaclock_username");
   const savedIdJam    = localStorage.getItem("kalaclock_id_jam");
   const isRemembered  = localStorage.getItem("kalaclock_remember") === "true";
@@ -273,12 +260,11 @@ function initAppFlow() {
     if (checkRemember) checkRemember.checked = true;
   }
 
-  // Transisi dari Loading Screen ke Login Screen
   if (loginScreen) {
     loginScreen.classList.remove("hidden");
   }
 
-  // Tangani Submit Form Login
+  // Tangani Submit Form Login dengan Verifikasi ke Database
   if (loginForm) {
     loginForm.addEventListener("submit", function (e) {
       e.preventDefault();
@@ -297,35 +283,81 @@ function initAppFlow() {
         return;
       }
 
-      // SIMPAN DATA LOGIN & UPDATE TOPIK MQTT (PANGGIL FUNGSI REUSABLE)
-      setClockID(idJamVal);
-
-      if (checkRemember && checkRemember.checked) {
-        localStorage.setItem("kalaclock_username", userVal);
-        localStorage.setItem("kalaclock_id_jam", idJamVal);
-        localStorage.setItem("kalaclock_remember", "true");
-      } else {
-        localStorage.removeItem("kalaclock_username");
-        localStorage.removeItem("kalaclock_id_jam");
-        localStorage.removeItem("kalaclock_remember");
+      if (errBox) errBox.style.display = "none";
+      if (btnLogin) {
+        btnLogin.disabled = true;
+        btnLogin.textContent = "Memverifikasi Akun...";
       }
 
-      // Update Tampilan Info di Dashboard
-      const displayIdJamEl = document.getElementById("displayIdJam");
-      const userGreetingEl = document.getElementById("userGreeting");
-      if (displayIdJamEl) displayIdJamEl.textContent = id_jam;
-      if (userGreetingEl) userGreetingEl.textContent = userVal;
+      // Verifikasi ke endpoint PHP api_login_user.php
+      const formData = new FormData();
+      formData.append("username", userVal);
+      formData.append("id_jam", idJamVal);
 
-      // Hubungkan MQTT dengan ID Jam baru
-      setupMQTT();
+      fetch("api/api_login_user.php", {
+        method: "POST",
+        body: formData
+      })
+      .then(res => res.json())
+      .then(resData => {
+        if (btnLogin) {
+          btnLogin.disabled = false;
+          btnLogin.textContent = "Log In";
+        }
 
-      // Tampilkan Modal Notifikasi Login & Jalankan Countdown
-      showLoginCountdownModal();
+        if (resData && resData.success) {
+          // Akun terdaftar & aktif di database admin!
+          setClockID(idJamVal);
+
+          if (checkRemember && checkRemember.checked) {
+            localStorage.setItem("kalaclock_username", userVal);
+            localStorage.setItem("kalaclock_id_jam", idJamVal);
+            localStorage.setItem("kalaclock_remember", "true");
+          } else {
+            localStorage.removeItem("kalaclock_username");
+            localStorage.removeItem("kalaclock_id_jam");
+            localStorage.removeItem("kalaclock_remember");
+          }
+
+          const displayIdJamEl = document.getElementById("displayIdJam");
+          const userGreetingEl = document.getElementById("userGreeting");
+          if (displayIdJamEl) displayIdJamEl.textContent = id_jam;
+          if (userGreetingEl) userGreetingEl.textContent = userVal;
+
+          setupMQTT();
+          showLoginCountdownModal();
+        } else {
+          // Akun tidak terdaftar atau dinonaktifkan oleh admin
+          const msg = resData.message || "Username atau ID Jam tidak ditemukan.";
+          if (errBox) {
+            errBox.textContent = msg;
+            errBox.style.display = "block";
+          } else {
+            alert(msg);
+          }
+        }
+      })
+      .catch(err => {
+        if (btnLogin) {
+          btnLogin.disabled = false;
+          btnLogin.textContent = "Log In";
+        }
+        console.warn("API Database tidak merespons (mode offline/local file):", err);
+        // Fallback jika database belum disetel / offline preview
+        if (confirm("Koneksi API database lokal belum aktif. Tetap masuk dengan mode demo offline?")) {
+          setClockID(idJamVal);
+          const displayIdJamEl = document.getElementById("displayIdJam");
+          const userGreetingEl = document.getElementById("userGreeting");
+          if (displayIdJamEl) displayIdJamEl.textContent = id_jam;
+          if (userGreetingEl) userGreetingEl.textContent = userVal;
+          setupMQTT();
+          showLoginCountdownModal();
+        }
+      });
     });
   }
 }
 
-// Menampilkan Modal Sukses Login & Hitung Mundur 5 Detik
 function showLoginCountdownModal() {
   const modalOverlay  = document.getElementById("loginSuccessModal");
   const countdownEl   = document.getElementById("loginCountdown");
@@ -335,7 +367,7 @@ function showLoginCountdownModal() {
   if (!modalOverlay || !countdownEl) return;
 
   modalOverlay.classList.add("active");
-  let timeLeft = 5;
+  let timeLeft = 3;
   countdownEl.textContent = timeLeft;
 
   const timerInterval = setInterval(() => {
@@ -346,17 +378,14 @@ function showLoginCountdownModal() {
       clearInterval(timerInterval);
       modalOverlay.classList.remove("active");
       
-      // Sembunyikan halaman login dan tampilkan Main Dashboard
       if (loginScreen)   loginScreen.classList.add("hidden");
       if (mainDashboard) mainDashboard.classList.remove("hidden");
 
-      // Scroll ke paling atas halaman dashboard
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, 1000);
 }
 
-// Fungsi untuk Ganti ID Jam / Logout kembali ke layar login
 function logout() {
   const loginScreen   = document.getElementById("loginScreen");
   const mainDashboard = document.getElementById("mainDashboard");
@@ -365,7 +394,7 @@ function logout() {
 }
 
 // ==========================================================================
-// BAGIAN 4: KONEKSI MQTT REAL-TIME DENGAN PAHO MQTT
+// 6. KONEKSI MQTT REAL-TIME DENGAN PAHO MQTT
 // ==========================================================================
 function setupMQTT() {
   if (typeof Paho === "undefined" || !Paho.MQTT) {
@@ -392,13 +421,10 @@ function setupMQTT() {
     mqttClient.onMessageArrived = function (message) {
       console.log("Pesan MQTT Diterima:", message.destinationName, message.payloadString);
       
-      // Jika pesan berasal dari topik status (id_jam itu sendiri atau KalaClock/status)
-      if (
-        message.destinationName === mqtt_topic_status
-      ) {
+      if (message.destinationName === mqtt_topic_status) {
         try {
           const data = JSON.parse(message.payloadString);
-          if (data.status === "online" || (data.id_jam && data.id_jam === id_jam)) {
+          if (data.status === "online" || (data.id_jam && data.id_jam === `KalaClock/${id_jam}/status`)) {
             updateStatusDot("dotJam", true);
           } else if (data.status === "offline") {
             updateStatusDot("dotJam", false);
@@ -431,16 +457,12 @@ function connectMQTTClient() {
       console.log("Berhasil terhubung ke Broker MQTT EMQX:", mqtt_broker);
       updateStatusDot("dotBroker", true);
 
-      // Subscribe ke topik status alat (dinamis sesuai id_jam)
       mqttClient.subscribe(mqtt_topic_status, {
         onSuccess: function () {
-          console.log("Berhasil subscribe ke mqtt_topic:", mqtt_topic_status);
+          console.log("Berhasil subscribe ke mqtt_topic_status:", mqtt_topic_status);
         }
       });
-      // Juga subscribe ke topik cadangan status global
-      mqttClient.subscribe(`KalaClock/${id_jam}/status`);
 
-      // Kirim ping untuk mengecek respons unit jam
       pingJam();
     },
     onFailure: function (err) {
@@ -476,7 +498,7 @@ function updateStatusDot(elementId, isOnline) {
 }
 
 // ==========================================================================
-// BAGIAN 5: STATUS DATABASE MYSQL
+// 7. STATUS DATABASE MYSQL
 // ==========================================================================
 function cekStatusDatabase() {
   fetch("api/api_status_db.php")
@@ -494,12 +516,7 @@ function cekStatusDatabase() {
 }
 
 // ==========================================================================
-// BAGIAN 6: KONTROL PREVIEW RUNNING TEXT, KECERAHAN, & KECEPATAN
-// MENDUKUNG 4 MODE TAMPILAN:
-// Mode 1: ← KIRI (Scroll Text Left)
-// Mode 2: STATIS (Text Static Center)
-// Mode 3: KANAN → (Scroll Text Right)
-// Mode 4: JAM + TEKS (Jam Digital + Running Text Bergantian Sesuai Firmware P10)
+// 8. PREVIEW RUNNING TEXT, KECERAHAN, & KECEPATAN
 // ==========================================================================
 function updateTickerText(text) {
   const tickerEl = document.getElementById("virtualTicker");
@@ -558,7 +575,6 @@ function setBrightnessPreset(val) {
   setBrightness(val, true);
 }
 
-// 4 Mode Tampilan Jam
 function setDisplayMode(mode) {
   currentMode = parseInt(mode);
   const tickerEl   = document.getElementById("virtualTicker");
@@ -566,7 +582,6 @@ function setDisplayMode(mode) {
   const tickerWrap = document.querySelector(".led-ticker-wrap");
   const divider    = document.querySelector(".led-divider");
 
-  // Update tombol aktif di UI
   document.querySelectorAll(".btn-mode").forEach(btn => {
     if (parseInt(btn.getAttribute("data-mode")) === currentMode) {
       btn.classList.add("active");
@@ -575,7 +590,6 @@ function setDisplayMode(mode) {
     }
   });
 
-  // Hentikan timer alternasi jika ada
   if (mode4Timer) {
     clearInterval(mode4Timer);
     mode4Timer = null;
@@ -584,7 +598,7 @@ function setDisplayMode(mode) {
   if (!tickerEl) return;
 
   switch (currentMode) {
-    case 1: // ← KIRI: Berjalan ke Kiri murni
+    case 1:
       if (clockBox)   clockBox.style.display   = "none";
       if (divider)    divider.style.display    = "none";
       if (tickerWrap) tickerWrap.style.display = "block";
@@ -593,7 +607,7 @@ function setDisplayMode(mode) {
       tickerEl.style.paddingLeft = "100%";
       break;
 
-    case 2: // STATIS: Diam di Tengah
+    case 2:
       if (clockBox)   clockBox.style.display   = "none";
       if (divider)    divider.style.display    = "none";
       if (tickerWrap) tickerWrap.style.display = "block";
@@ -602,7 +616,7 @@ function setDisplayMode(mode) {
       tickerEl.style.paddingLeft = "0";
       break;
 
-    case 3: // KANAN →: Berjalan ke Kanan
+    case 3:
       if (clockBox)   clockBox.style.display   = "none";
       if (divider)    divider.style.display    = "none";
       if (tickerWrap) tickerWrap.style.display = "block";
@@ -611,7 +625,7 @@ function setDisplayMode(mode) {
       tickerEl.style.paddingLeft = "0";
       break;
 
-    case 4: // JAM + TEKS: Menampilkan Jam Digital & Running Text Bergantian (Sesuai Firmware P10)
+    case 4:
     default:
       if (clockBox)   clockBox.style.display   = "flex";
       if (divider)    divider.style.display    = "block";
@@ -620,7 +634,6 @@ function setDisplayMode(mode) {
       tickerEl.style.textAlign = "left";
       tickerEl.style.paddingLeft = "100%";
 
-      // Siklus alternasi setiap 5 detik seperti pada firmware ESP8266 p10.ino
       mode4ShowClock = true;
       mode4Timer = setInterval(() => {
         mode4ShowClock = !mode4ShowClock;
@@ -637,7 +650,7 @@ function setDisplayMode(mode) {
 }
 
 // ==========================================================================
-// BAGIAN 7: PENGATURAN ZONA WAKTU & KALIBRASI RTC / NTP
+// 9. ZONA WAKTU & KALIBRASI RTC / NTP
 // ==========================================================================
 function setTimezonePreset(tz) {
   timezoneOffset = parseInt(tz);
@@ -656,10 +669,9 @@ function setTimezonePreset(tz) {
   });
 
   updateClocks();
-
-  // Tambahkan ini biar langsung ngirim ke ESP pas tombol UTC diklik
   kirimSecaraRealTime(); 
 }
+
 function kalibrasiRTC() {
   const now = new Date();
   const utcMillis = now.getTime() + (now.getTimezoneOffset() * 60000);
@@ -707,7 +719,7 @@ function kalibrasiNTP() {
 }
 
 // ==========================================================================
-// BAGIAN 8: PENGIRIMAN DATA SECARA REAL TIME
+// 10. PENGIRIMAN DATA SECARA REAL TIME
 // ==========================================================================
 function kirimSecaraRealTime() {
   const inputTeksEl = document.getElementById("inputTeks");
@@ -724,17 +736,13 @@ function kirimSecaraRealTime() {
     timestamp: Date.now()
   };
 
-  // 1. Kirim via MQTT
-  let mqttSent = false;
   if (mqttClient && mqttClient.isConnected()) {
     const msg = new Paho.MQTT.Message(JSON.stringify(payloadObj));
     msg.destinationName = mqtt_topic;
     msg.retained = false;
     mqttClient.send(msg);
-    mqttSent = true;
   }
 
-  // 2. Simpan ke Backend Database (Fetch AJAX Aman)
   const formData = new FormData();
   formData.append("id_jam", id_jam);
   formData.append("teks", payloadObj.teks);
@@ -745,11 +753,8 @@ function kirimSecaraRealTime() {
   fetch("api/api_simpan.php", {
     method: "POST",
     body: formData
-  }).catch(() => {
-    // Abaikan jika server backend offline di lokal
-  });
+  }).catch(() => {});
 
-  // 3. Tampilkan Notifikasi Toast Hijau
   showToastNotification(
     "Notifikasi Perubahan Jam Berhasil",
     "Perubahan jam anda telah berhasil! jam akan menunjukkan pengaturan baru"
@@ -774,11 +779,10 @@ function showToastNotification(title, message) {
 }
 
 // ==========================================
-// FUNGSI MANAJEMEN JADWAL & EFISIENSI
+// 11. MANAJEMEN JADWAL & EFISIENSI
 // ==========================================
 let jadwalCount = 1;
 
-// 1. Fungsi Tambah Baris Jadwal Baru di UI
 function tambahJadwal() {
   jadwalCount++;
   const container = document.getElementById('wadahJadwal');
@@ -795,13 +799,19 @@ function tambahJadwal() {
         <input type="time" class="control-input input-mulai" value="12:00" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
         <span style="color: var(--text-muted); font-size: 10px;">-</span>
         <input type="time" class="control-input input-selesai" value="13:00" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
-        <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;" title="Hapus;">✕</button>
+        <button onclick="this.parentElement.parentElement.parentElement.remove(); saveCurrentInputs();" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;" title="Hapus;">✕</button>
       </div>
     </div>
     <input type="text" class="control-input input-pesan" placeholder="Ketik pesan jadwal baru..." value="" style="width: 100%;">
   `;
 
   container.appendChild(newItem);
+
+  newItem.querySelectorAll('input').forEach(input => {
+    input.addEventListener('input', saveCurrentInputs);
+    input.addEventListener('change', saveCurrentInputs);
+  });
+
   setTimeout(() => { container.scrollTop = container.scrollHeight; }, 100);
 }
 
@@ -841,32 +851,22 @@ function prosesSimpanJadwal() {
     mqttClient.send(message);
   }
 
-  if (typeof showToastNotification === 'function') {
-    showToastNotification(
-      "Jadwal & Efisiensi Tersimpan!",
-      "Pengaturan jadwal baru telah berhasil dikirim ke perangkat jam IoT."
-    );
-  } else {
-    alert("Jadwal & Efisiensi Berhasil Dikirim!");
-  }
+  showToastNotification(
+    "Jadwal & Efisiensi Tersimpan!",
+    "Pengaturan jadwal baru telah berhasil dikirim ke perangkat jam IoT."
+  );
   saveCurrentInputs();
 }
 
 // ==========================================================================
-// BAGIAN 9: EVENT LISTENER & INISIALISASI HALAMAN
+// 12. INISIALISASI HALAMAN
 // ==========================================================================
 document.addEventListener("DOMContentLoaded", function () {
-  // 1. Buat penanda jam analog (12 penanda kapsul)
   generateClockTicks();
-
-  // 2. Jalankan pembaruan jam secara berkala setiap detik (Selalu Sinkron)
   updateClocks();
   setInterval(updateClocks, 1000);
-
-  // 3. Inisialisasi Alur Loading Screen -> Login
   initAppFlow();
 
-  // 4. Event Listener untuk Input Running Text (Live Ticker Update)
   const inputTeksEl = document.getElementById("inputTeks");
   if (inputTeksEl) {
     inputTeksEl.addEventListener("input", function () {
@@ -874,7 +874,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // 5. Event Listener untuk Slider Kecepatan
   const inputSpeedEl = document.getElementById("inputSpeed");
   if (inputSpeedEl) {
     inputSpeedEl.addEventListener("input", function () {
@@ -882,7 +881,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // 6. Event Listener untuk Slider Kecerahan
   const inputBrightnessEl = document.getElementById("inputBrightness");
   if (inputBrightnessEl) {
     inputBrightnessEl.addEventListener("input", function () {
@@ -890,7 +888,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // 7. Event Listener untuk Tombol-Tombol Mode Tampilan Jam
   document.querySelectorAll(".btn-mode").forEach(btn => {
     btn.addEventListener("click", function () {
       const mode = this.getAttribute("data-mode");
@@ -898,26 +895,22 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
-  // 8. Terapkan state awal (Default Mode 4: Jam Digital + Teks Bergantian)
   setBrightness(80);
   setSpeed(40);
-  setDisplayMode(4); // Default Mode 4
-  setTimezonePreset(8); // UTC+8 WITA
+  setDisplayMode(4);
+  setTimezonePreset(8);
   
   document.querySelectorAll(".btn-utc").forEach(btn => {
-  btn.addEventListener("click", function () {
-    const tz = this.getAttribute("data-tz");
-    setTimezonePreset(tz);
+    btn.addEventListener("click", function () {
+      const tz = this.getAttribute("data-tz");
+      setTimezonePreset(tz);
     });
   });
 
-  // 9. Cek status database berkala
   cekStatusDatabase();
   setInterval(cekStatusDatabase, 12000);
 
-  // 10. Event listener untuk simpan otomatis tiap kali ada perubahan input
   const inputsToTrack = ['inputTeks', 'inputBrightness', 'inputSpeed'];
-
   inputsToTrack.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
