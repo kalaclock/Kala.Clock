@@ -20,7 +20,7 @@
 #include <ESP8266WiFi.h>  // Konektivitas WiFi ESP8266
 #include <PubSubClient.h> // Library MQTT Client
 #include <DMDESP.h>       // Library Driver P10 LED Matrix
-#include <fonts/ElektronMart6x8.h>// Font Standar P10
+#include <fonts/Mono5x7.h> // Font Standar P10
 #include <Ticker.h>       // Background Refresh Timer
 #include <ArduinoJson.h>  // Parser JSON dari Web Dashboard
 #include <LittleFS.h>     // Sistem File Flash untuk Cadangan Offline
@@ -33,8 +33,8 @@
 // SECTION 1: KONFIGURASI WIFI
 // Ubah ssid dan password sesuai jaringan WiFi Anda.
 // ============================================================
-const char* ssid     = "Melhani";
-const char* password = "Sepuluhcucu10";
+const char* ssid     = "Infinix HOT 20S";
+const char* password = "inf8n8x20s";
 
 // ============================================================
 // SECTION 2: KONFIGURASI MQTT
@@ -614,7 +614,7 @@ void setup() {
   // Konfigurasi dan mulai layar P10
   Disp.start();
   Disp.setBrightness(tingkat_kecerahan);
-  Disp.setFont(ElektronMart6x8);
+  Disp.setFont(Mono5x7);
   panjang_layar = Disp.width();
   posisi_X      = panjang_layar;
 
