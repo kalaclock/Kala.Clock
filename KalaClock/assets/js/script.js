@@ -482,7 +482,7 @@ function pingJam() {
       timestamp: Date.now()
     };
     const msg = new Paho.MQTT.Message(JSON.stringify(pingPayload));
-    msg.destinationName = mqtt_topic_status;
+    msg.destinationName = mqtt_topic;
     mqttClient.send(msg);
   }
 }
