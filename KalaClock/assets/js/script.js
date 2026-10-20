@@ -822,9 +822,9 @@ function prosesSimpanJadwal() {
   const autoSleep = document.getElementById('valAutoSleep')?.checked || false;
 
   let jadwalList = [];
-  const jadwalItems = document.querySelectorAll('.jadwal-item');
+  let jadwalItems = document.querySelectorAll('.jadwal-item');
   jadwalItems.forEach(item => {
-    const pesan = item.querySelector('.input-pesan')?.value || '';
+    let pesan = item.querySelector('.input-pesan')?.value || '';
     if (pesan.trim() !== '') {
       jadwalList.push({
         nama: item.querySelector('.input-nama-jadwal')?.value || '',
