@@ -375,41 +375,10 @@
             </div>
             <input type="checkbox" id="valAutoSleep" style="accent-color: var(--accent-tan); width: 18px; height: 18px; cursor: pointer;" />
           </div>
-        </div>
-      </section>
-      
-      <!-- KARTU B: SIARAN PESAN TERJADWAL -->
-      <section class="control-card">
-        <div style="display: flex; flex-direction: column; height: 100%;">
-          <div class="control-card-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div>
-              <h3 style="margin-bottom: 4px;">Siaran Pesan Terjadwal</h3>
-              <p>Ganti teks secara otomatis di rehJadwal()" style="background-color: var(--accent-tan); color: var(--text-dark-btn); border: none; padding: 4px 10px; border-radius: var(--radius-btn); font-size: 10px; font-weight: 700; cursor: pointer; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: 0.2s;">
-              + Tambahntang jam tertentu.</p>
-            </div>
-            <button type="button" onclick="tamba
-            </button>
-          </div>
-          <hr class="card-dashed-line" style="margin-top: 8px;" />
-
-          <div id="wadahJadwal" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-height: 230px; overflow-y: auto; padding-right: 4px;">
-            <div class="jadwal-item" style="background-color: var(--bg-subcard); padding: 12px; border-radius: var(--radius-btn); border: 1px solid var(--border-subtle);">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <input type="text" value="Jadwal Pagi" class="input-nama-jadwal" style="background: transparent; border: none; color: var(--accent-tan); font-size: 11px; font-weight: 700; outline: none; width: 85px; font-family: 'Plus Jakarta Sans';" />
-                <div style="display: flex; gap: 4px; align-items: center;">
-                  <input type="time" class="control-input input-mulai" value="06:00" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;" />
-                  <span style="color: var(--text-muted); font-size: 10px;">-</span>
-                  <input type="time" class="control-input input-selesai" value="11:59" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;" />
-                  <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;" title="Hapus">✕</button>
-                </div>
-              </div>
-              <input type="text" class="control-input input-pesan" placeholder="Ketik pesan jadwal..." value="Selamat Pagi! Semangat Beraktivitas" style="height: 34px; font-size: 10px;" />
-            </div>
-          </div>
-        </div>
            <button type="button" class="btn-send-realtime" onclick="prosesSimpanJadwal()" style="width: 100%; margin-top: 12px; height: 38px; min-height: 38px; font-size: 12px; padding: 0;">
           Simpan Jadwal Efisiensi
         </button>
+        </div>
       </section>
     </div>
 
@@ -469,6 +438,39 @@
     </div>
   </main>
 
+      
+      <!-- KARTU B: SIARAN PESAN TERJADWAL -->
+      <!-- <section class="control-card">
+        <div style="display: flex; flex-direction: column; height: 100%;">
+          <div class="control-card-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <h3 style="margin-bottom: 4px;">Siaran Pesan Terjadwal</h3>
+              <p>Ganti teks secara otomatis di rentang jam tertentu.</p>
+            </div>
+            <button type="button" onclick="tambahJadwal()" style="background-color: var(--accent-tan); color: var(--text-dark-btn); border: none; padding: 4px 10px; border-radius: var(--radius-btn); font-size: 10px; font-weight: 700; cursor: pointer; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: 0.2s;">
+              + Tambah
+            </button>
+          </div>
+          <hr class="card-dashed-line" style="margin-top: 8px;" />
+
+          <div id="wadahJadwal" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-height: 230px; overflow-y: auto; padding-right: 4px;">
+            <div class="jadwal-item" style="background-color: var(--bg-subcard); padding: 12px; border-radius: var(--radius-btn); border: 1px solid var(--border-subtle);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <input type="text" value="Jadwal Pagi" class="input-nama-jadwal" style="background: transparent; border: none; color: var(--accent-tan); font-size: 11px; font-weight: 700; outline: none; width: 85px; font-family: 'Plus Jakarta Sans';" />
+                <div style="display: flex; gap: 4px; align-items: center;">
+                  <input type="time" class="control-input input-mulai" value="06:00" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;" />
+                  <span style="color: var(--text-muted); font-size: 10px;">-</span>
+                  <input type="time" class="control-input input-selesai" value="11:59" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;" />
+                  <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;" title="Hapus">✕</button>
+                </div>
+              </div>
+              <input type="text" class="control-input input-pesan" placeholder="Ketik pesan jadwal..." value="Selamat Pagi! Semangat Beraktivitas" style="height: 34px; font-size: 10px;" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div> -->
   <!-- Script Controller JavaScript Konsumen -->
   <script src="./assets/js/script.js?v=2.0.3"></script>
 </body>
