@@ -828,7 +828,7 @@ h2 .brand-name,
 
 .controls-grid-column {
   display: grid;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: 1fr;
   gap: 16px;
 }
 
