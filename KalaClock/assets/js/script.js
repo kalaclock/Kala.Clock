@@ -789,7 +789,7 @@ function tambahJadwal() {
   if (!container) return;
 
   const newItem = document.createElement('div');
-  newItem.className = 'jadwal-item';
+  newItem.className = '.jadwal-item';
   newItem.style.cssText = "background-color: var(--bg-subcard); padding: 12px; border-radius: var(--radius-btn); border: 1px solid var(--border-subtle); margin-bottom: 8px;";
 
   newItem.innerHTML = `
