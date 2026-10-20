@@ -190,7 +190,7 @@
     </div>
 
     <!-- BARIS KONTROL 1: RUNNING TEXT & KECERAHAN -->
-    <div class="controls-grid-row">
+    <div class="controls-grid-column">
       <!-- KARTU 2: TAMPILAN RUNNING TEXT -->
       <section class="control-card">
         <div>
@@ -283,7 +283,7 @@
     </div>
 
     <!-- BARIS KONTROL 2: KALIBRASI RTC/NTP & PENGIRIMAN REALTIME -->
-    <div class="controls-grid-row">
+    <div class="controls-grid-column">
       <!-- KARTU 4: KALIBRASI JAM -->
       <section class="control-card">
         <div>
@@ -331,7 +331,7 @@
     
     <!-- PEMBATAS SEKSI PENJADWALAN & EFISIENSI -->
     <div class="section-heading-divider" style="margin-top: 20px;">
-      <span>Penjadwalan &amp; Efisiensi(Tahap Uji Coba, Fitur Mungkin Berfungsi Tidak Efisien)</span>
+      <span>Penjadwalan &amp; Efisiensi</span>
     </div>
 
     <!-- BARIS KONTROL 3: EFISIENSI ENERGI & PESAN TERJADWAL -->
@@ -376,10 +376,13 @@
             <input type="checkbox" id="valAutoSleep" style="accent-color: var(--accent-tan); width: 18px; height: 18px; cursor: pointer;" />
           </div>
         </div>
+        <button type="button" class="btn-send-realtime" onclick="prosesSimpanJadwal()" style="width: 100%; margin-top: 12px; height: 38px; min-height: 38px; font-size: 12px; padding: 0;">
+          Simpan Jadwal Efisiensi
+        </button>
       </section>
 
       <!-- KARTU B: SIARAN PESAN TERJADWAL -->
-      <section class="control-card">
+      <!-- <section class="control-card">
         <div style="display: flex; flex-direction: column; height: 100%;">
           <div class="control-card-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div>
@@ -407,13 +410,9 @@
             </div>
           </div>
         </div>
-        
-        <button type="button" class="btn-send-realtime" onclick="prosesSimpanJadwal()" style="width: 100%; margin-top: 12px; height: 38px; min-height: 38px; font-size: 12px; padding: 0;">
-          Simpan Jadwal &amp; Efisiensi
-        </button>
       </section>
 
-    </div>
+    </div> -->
 
     <!-- PEMBATAS SEKSI PANDUAN -->
     <div class="section-heading-divider" style="margin-top: 20px;">
@@ -472,6 +471,6 @@
   </main>
 
   <!-- Script Controller JavaScript Konsumen -->
-  <script src="./assets/js/script.js?v=2.0.1"></script>
+  <script src="./assets/js/script.js?v=2.0.2"></script>
 </body>
 </html>
