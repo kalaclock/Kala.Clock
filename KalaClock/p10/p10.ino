@@ -33,8 +33,8 @@
 // SECTION 1: KONFIGURASI WIFI
 // Ubah ssid dan password sesuai jaringan WiFi Anda.
 // ============================================================
-const char* ssid     = "Infinix HOT 20S";
-const char* password = "inf8n8x20s";
+const char* ssid     = "Melhani";
+const char* password = "Sepuluhcucu10";
 
 // ============================================================
 // SECTION 2: KONFIGURASI MQTT
@@ -70,7 +70,7 @@ PubSubClient  mqttClient(espClient);
 // ============================================================
 // SECTION 5: HARDWARE DISPLAY P10 & RTC
 // ============================================================
-#define DISPLAYS_WIDE 1  // Ubah ke 2 jika memakai 2 panel (64x16)
+#define DISPLAYS_WIDE 1 // Ubah ke 2 jika memakai 2 panel (64x16)
 #define DISPLAYS_HIGH 1
 DMDESP Disp(DISPLAYS_WIDE, DISPLAYS_HIGH);
 
@@ -94,7 +94,7 @@ int    tingkat_kecerahan=150;  // 0-255, default 100
 int    timezone_offset = 8;    // UTC+8 (WITA)
 
 // Timer internal fallback jika RTC tidak terpasang
-unsigned long detikWaktuInternal = 0;
+unsigned long detikWaktuInternal = 0; 
 unsigned long millisSebelumnya   = 0;
 
 volatile boolean teksSedangDiupdate = false;
@@ -234,38 +234,38 @@ void refreshP10() {
 
       // 3. Hitung durasi berjalannya teks secara presisi (termasuk kecepatan_scroll)
       // Ditambah 1000ms (1 detik) delay pause setelah teks selesai gulir penuh
-      unsigned long durasi_teks_ms = (unsigned long)(total_jarak_px * kecepatan_scroll) + 1000;
+      // unsigned long durasi_teks_ms = (unsigned long)(total_jarak_px * kecepatan_scroll) + 200;
 
-      // 4. Durasi tampilan jam (misal dibuat tetap 5 detik / 5000ms)
-      unsigned long durasi_jam_ms = 5000; 
+      // // 4. Durasi tampilan jam (misal dibuat tetap 5 detik / 5000ms)
+      // unsigned long durasi_jam_ms = 5000; 
 
-      // Tentukan batas waktu berdasarkan mode yang lagi aktif saat ini
-      unsigned long batasWaktuSekarang = tampilkanJam ? durasi_jam_ms : durasi_teks_ms;
+      // // Tentukan batas waktu berdasarkan mode yang lagi aktif saat ini
+      // unsigned long batasWaktuSekarang = tampilkanJam ? durasi_jam_ms : durasi_teks_ms;
 
-      // Evaluasi apakah sudah waktunya ganti dari Teks -> Jam atau Jam -> Teks
-      if (millis() - waktuGantiMode > batasWaktuSekarang) {
-        waktuGantiMode = millis();
-        tampilkanJam   = !tampilkanJam;
-        posisi_X       = panjang_layar; // Reset posisi awal teks ke kanan
-      }
+      // // Evaluasi apakah sudah waktunya ganti dari Teks -> Jam atau Jam -> Teks
+      // if (millis() - waktuGantiMode > batasWaktuSekarang) {
+      //   waktuGantiMode = millis();
+      //   tampilkanJam   = !tampilkanJam;
+      //   posisi_X       = panjang_layar; // Reset posisi awal teks ke kanan
+      // }
 
       if (tampilkanJam) {
         // Tampilkan jam HH:MM di tengah panel
         int lebarJam = stringJam.length() * 6;
         int tengah_X = (panjang_layar - lebarJam) / 2;
-        Disp.drawText(tengah_X, 4, stringJam);
-      } else {
+        Disp.drawText(tengah_X, 1, stringJam);
         // Tampilkan running text bergulir
-        Disp.drawText(posisi_X, 4, teks_berjalan);
+        Disp.drawText(posisi_X, 9, teks_berjalan);
+        int panjang_teks = teks_berjalan.length() * 6;
         posisi_X--;
-
+        if (posisi_X < -panjang_teks) posisi_X = panjang_layar;
         // Tahan teks di posisi akhir (luar layar) selama delay 1 detik
-        if (posisi_X < -panjang_teks_px) {
-          posisi_X = -panjang_teks_px; 
-          }
+        // if (posisi_X < -panjang_teks_px) {
+        //   posisi_X = -panjang_teks_px; 
+        //   }
         }
       }
-    }
+    } 
   }
 }
 // ============================================================
