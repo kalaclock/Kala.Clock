@@ -33,8 +33,8 @@
 // SECTION 1: KONFIGURASI WIFI
 // Ubah ssid dan password sesuai jaringan WiFi Anda.
 // ============================================================
-const char* ssid     = "Melhani";
-const char* password = "Sepuluhcucu10";
+const char* ssid     = "KalaClock";
+const char* password = "kalaclock01";
 
 // ============================================================
 // SECTION 2: KONFIGURASI MQTT
@@ -49,8 +49,8 @@ const int   mqtt_port        = 1883;
 // Topik utama: JANGAN ubah nama variabel ini.
 // mqtt_topic        = topik data (Web → ESP, untuk broadcast atau spesifik)
 // mqtt_topic_status = topik status (ESP → Web, heartbeat online/offline)
-const char* mqtt_topic        = "KalaClock/KC00";
-const char* mqtt_topic_status = "KalaClock/KC00/status";
+const char* mqtt_topic        = "KalaClock/KC01";
+const char* mqtt_topic_status = "KalaClock/KC01/status";
 
 // ============================================================
 // SECTION 3: ID JAM (IDENTITAS ALAT INI)
@@ -89,13 +89,16 @@ String teks_berjalan   = "Kala.Clock IoT — Sistem Jam dan Running Text";
 int    posisi_X        = 32;
 int    panjang_layar   = 32;
 int    mode_tampilan   = 4;    // 1=Kiri, 2=Statis, 3=Kanan, 4=Jam+Teks
-int    kecepatan_scroll= 40;   // ms per geser
-int    tingkat_kecerahan=150;  // 0-255, default 100
+int    kecepatan_scroll= 50;   // ms per geser
+int    tingkat_kecerahan= 15;  // 0-255, default 100
 int    timezone_offset = 8;    // UTC+8 (WITA)
 
 // Timer internal fallback jika RTC tidak terpasang
 unsigned long detikWaktuInternal = 0; 
 unsigned long millisSebelumnya   = 0;
+int internalHari = 2;
+int internalBulan = 11; // November
+int internalTahun = 2026;
 
 volatile boolean teksSedangDiupdate = false;
 
@@ -115,12 +118,13 @@ int jumlahJadwal = 0;
 bool efisiensiAktif = false;
 int jamTidur = 22, menitTidur = 0;
 int jamBangun = 5, menitBangun = 0;
-int kecerahanMalam = 15;
+int kecerahanMalam = 1;
 bool autoSleep = false;
-String teksUtamaBackup = "";
+bool isNightModeSleep = false;
+String teksUtamaBackup = "Kala.Clock IoT - Sistem Jam dan Running Text";
 
 // ============================================================
-// SECTION : HELPER FUNCTIONS
+// SECTION : HELPER FUNCTIONS & JADWAL SHOLAT
 // ============================================================
 
 /** Format angka jadi dua digit: 5 → "05" */
@@ -129,6 +133,259 @@ String duaDigit(int nilai) {
   return String(nilai);
 }
 
+const char* namaBulan[] = {
+  "", "Jan", "Feb", "Mar", "Apr", "Juni", "Juli", "Agus", "Sep", "Okt", "Nov", "Des"
+};
+
+const char* NAMA_HARI[] = {
+  "Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"
+};
+
+const char* NAMA_BULAN_CAPS[] = {
+  // "", "JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU", "SEP", "OKT", "NOV", "DES"
+  "", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"
+};
+
+/**
+ * Hitung nama hari dalam seminggu (0 = Minggu, 1 = Senin, ..., 6 = Sabtu)
+ */
+int hitungHariDalamSeminggu(int y, int m, int d) {
+  static int t[] = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 };
+  if (m < 3) y -= 1;
+  return (y + y/4 - y/100 + y/400 + t[m-1] + d) % 7;
+}
+
+/**
+ * Perhitungan Astronomis 5 Waktu Sholat Presisi (NOAA & Kemenag RI)
+ * Menggunakan Ephemeris Matahari (Equation of Time & Deklinasi)
+ * Teruji akurat untuk Kota Banjarmasin (WITA UTC+8) dan seluruh Indonesia.
+ */
+void hitung5WaktuSholat(int y, int m, int d, int tz,
+                        String &jamSubuh, String &jamZuhur,
+                        String &jamAsar, String &jamMagrib, String &jamIsya) {
+  static int lastD = -1, lastM = -1, lastY = -1, lastTz = -99;
+  static String cSubuh = "04:41", cZuhur = "12:08", cAsar = "15:26", cMagrib = "18:15", cIsya = "19:26";
+
+  if (d == lastD && m == lastM && y == lastY && tz == lastTz) {
+    jamSubuh  = cSubuh;
+    jamZuhur  = cZuhur;
+    jamAsar   = cAsar;
+    jamMagrib = cMagrib;
+    jamIsya   = cIsya;
+    return;
+  }
+
+  // Koordinat acuan Kota Banjarmasin (WITA UTC+8)
+  float lat = -3.3194;
+  float lon = 114.5908;
+  if (tz == 7) { lat = -6.2088; lon = 106.8456; }      // WIB (Jakarta/Jawa)
+  else if (tz == 8) { lat = -3.3194; lon = 114.5908; } // WITA (Banjarmasin)
+  else if (tz == 9) { lat = -3.7000; lon = 128.1800; } // WIT (Ambon/Papua)
+
+  // Hitung Day of Year (doy)
+  int daysInMonth[] = { 0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+  if (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) daysInMonth[2] = 29;
+  int doy = d;
+  for (int i = 1; i < m && i <= 12; i++) {
+    doy += daysInMonth[i];
+  }
+
+  // Sudut fraksional tahun (gamma dalam radian)
+  float gamma = (2.0 * PI / 365.25) * (float)(doy - 1);
+
+  // NOAA Equation of Time (menit) & Deklinasi Matahari (radian)
+  float eqtime = 229.18 * (0.000075 + 0.001868 * cos(gamma) - 0.032077 * sin(gamma)
+                - 0.014615 * cos(2.0 * gamma) - 0.040849 * sin(2.0 * gamma));
+
+  float decl = 0.006918 - 0.399912 * cos(gamma) + 0.070257 * sin(gamma)
+             - 0.006758 * cos(2.0 * gamma) + 0.000907 * sin(2.0 * gamma)
+             - 0.002697 * cos(3.0 * gamma) + 0.00148 * sin(3.0 * gamma);
+
+  // Waktu matahari tepat di titik kulminasi atas (Zuhur astronomis)
+  float zuhurRaw = 12.0 + (tz * 15.0 - lon) / 15.0 - (eqtime / 60.0);
+  float latRad   = lat * DEG_TO_RAD;
+
+  auto hitungHA = [&](float altDeg) -> float {
+    float altRad = altDeg * DEG_TO_RAD;
+    float cosHA = (sin(altRad) - sin(latRad) * sin(decl)) / (cos(latRad) * cos(decl));
+    if (cosHA > 1.0)  cosHA = 1.0;
+    if (cosHA < -1.0) cosHA = -1.0;
+    return acos(cosHA) * RAD_TO_DEG / 15.0;
+  };
+
+  // Sudut posisi matahari standar Kemenag RI + Ihtiyat
+  float haSubuh = hitungHA(-20.0);
+  float subuhFloat = zuhurRaw - haSubuh + (2.0 / 60.0);
+
+  float zuhurFloat = zuhurRaw + (2.6 / 60.0);
+
+  float altAshar = atan(1.0 / (1.0 + tan(fabs(latRad - decl)))) * RAD_TO_DEG;
+  float haAshar = hitungHA(altAshar);
+  float asharFloat = zuhurRaw + haAshar + (2.0 / 60.0);
+
+  float haMagrib = hitungHA(-0.8333);
+  float magribFloat = zuhurRaw + haMagrib + (2.5 / 60.0);
+
+  float haIsya = hitungHA(-18.0);
+  float isyaFloat = zuhurRaw + haIsya + (2.5 / 60.0);
+
+  auto toHMStr = [](float t) -> String {
+    if (t < 0) t += 24.0;
+    if (t >= 24.0) t -= 24.0;
+    int h = (int)t;
+    int min = (int)((t - h) * 60.0 + 0.5);
+    if (min >= 60) { min -= 60; h = (h + 1) % 24; }
+    return duaDigit(h) + ":" + duaDigit(min);
+  };
+
+  cSubuh  = toHMStr(subuhFloat);
+  cZuhur  = toHMStr(zuhurFloat);
+  cAsar   = toHMStr(asharFloat);
+  cMagrib = toHMStr(magribFloat);
+  cIsya   = toHMStr(isyaFloat);
+
+  lastD = d; lastM = m; lastY = y; lastTz = tz;
+
+  jamSubuh  = cSubuh;
+  jamZuhur  = cZuhur;
+  jamAsar   = cAsar;
+  jamMagrib = cMagrib;
+  jamIsya   = cIsya;
+}
+
+/**
+ * Gambar Tanggal Kustom di X = startX, Y = startY
+ * Format: 2NOV2026 dengan ekstra 1px gap (total 2px gap) antara Tgl-Bulan dan Bulan-Tahun.
+ * Fallback aman ke NOV (11) jika bulan tidak valid agar tidak pernah muncul "BLN".
+ */
+void drawTanggalKustom(int startX, int startY, int d, int bl, int y) {
+  int bulanValid = (bl >= 1 && bl <= 12) ? bl : 11;
+  String strTgl = String(d);
+  String strBln = NAMA_BULAN_CAPS[bulanValid];
+  String strThn = (d < 10) ? String(y) : String(y % 100);
+
+  // Gambar Hari/Tanggal
+  Disp.drawText(startX, startY, strTgl);
+  int curX = startX + (strTgl.length() * 6) + 1; // Ekstra 1px gap (total 2px)
+
+  // Gambar Bulan
+  Disp.drawText(curX, startY, strBln);
+  curX += (strBln.length() * 6) + 1; // Ekstra 1px gap (total 2px)
+
+  // Gambar Tahun
+  Disp.drawText(curX, startY, strThn);
+}
+
+// ============================================================
+// ANIMASI ROLLING TEKS INFORMASI ATAS (X = 15, Y = -8 s.d. 0)
+// Siklus 12 Slide Bergantian 1-1 (2.5 Detik per slide):
+// Hari -> Tanggal -> Subuh -> Jam -> Zuhur -> Jam -> Asar -> Jam -> Magrib -> Jam -> Isya -> Jam
+// ============================================================
+enum AnimasiInfoState {
+  INFO_SLIDE_IN,   // Dari Y = -8 ke Y = 0
+  INFO_HOLD,       // Tahan diam di Y = 0 selama 2.5 detik
+  INFO_SLIDE_OUT   // Naik dari Y = 0 ke Y = -8
+};
+
+static AnimasiInfoState statusAnimInfo = INFO_SLIDE_IN;
+static int curY_Info = -8;
+static unsigned long waktuHoldInfo = 0;
+static int indexSlideInfo = 0; 
+
+void updateAnimasiInfo() {
+  if (statusAnimInfo == INFO_SLIDE_IN) {
+    curY_Info++;
+    if (curY_Info >= 0) {
+      curY_Info = 0;
+      statusAnimInfo = INFO_HOLD;
+      waktuHoldInfo = millis();
+    }
+  } else if (statusAnimInfo == INFO_HOLD) {
+    curY_Info = 0;
+    if (millis() - waktuHoldInfo >= 2500) { // 2.5 Detik
+      statusAnimInfo = INFO_SLIDE_OUT;
+    }
+  } else if (statusAnimInfo == INFO_SLIDE_OUT) {
+    curY_Info--;
+    if (curY_Info <= -8) {
+      curY_Info = -8;
+      indexSlideInfo = (indexSlideInfo + 1) % 12; // 12 Slide bergantian penuh
+      statusAnimInfo = INFO_SLIDE_IN;
+    }
+  }
+}
+
+void renderInfoAtas(int jam, int menit, int hari, int bl, int tahun) {
+  updateAnimasiInfo();
+
+  String jSubuh, jZuhur, jAsar, jMagrib, jIsya;
+  hitung5WaktuSholat(tahun, bl, hari, timezone_offset, jSubuh, jZuhur, jAsar, jMagrib, jIsya);
+
+  auto drawCentered = [](int curY, const String &teks) {
+    int lebar = teks.length() * 6;
+    int xCentered = 15 + ((49 - lebar) / 2);
+    if (xCentered < 15) xCentered = 15;
+    Disp.drawText(xCentered, curY, teks);
+  };
+
+  switch (indexSlideInfo) {
+    case 0: {
+      // Slide 0: Hari ("Senin")
+      int hariIdx = hitungHariDalamSeminggu(tahun, bl, hari);
+      drawCentered(curY_Info, NAMA_HARI[hariIdx]);
+      break;
+    }
+    case 1: {
+      // Slide 1: Tanggal ("2NOV2026" dengan gap 2px)
+      drawTanggalKustom(14, curY_Info, hari, bl, tahun);
+      break;
+    }
+    case 2:
+      // Slide 2: "Subuh"
+      drawCentered(curY_Info, "Subuh");
+      break;
+    case 3:
+      // Slide 3: Jam Subuh ("04:41")
+      drawCentered(curY_Info, jSubuh);
+      break;
+    case 4:
+      // Slide 4: "Zuhur"
+      drawCentered(curY_Info, "Zuhur");
+      break;
+    case 5:
+      // Slide 5: Jam Zuhur ("12:08")
+      drawCentered(curY_Info, jZuhur);
+      break;
+    case 6:
+      // Slide 6: "Asar"
+      drawCentered(curY_Info, "Asar");
+      break;
+    case 7:
+      // Slide 7: Jam Asar ("15:26")
+      drawCentered(curY_Info, jAsar);
+      break;
+    case 8:
+      // Slide 8: "Magrib"
+      drawCentered(curY_Info, "Magrib");
+      break;
+    case 9:
+      // Slide 9: Jam Magrib ("18:15")
+      drawCentered(curY_Info, jMagrib);
+      break;
+    case 10:
+      // Slide 10: "Isya"
+      drawCentered(curY_Info, "Isya");
+      break;
+    case 11:
+      // Slide 11: Jam Isya ("19:26")
+      drawCentered(curY_Info, jIsya);
+      break;
+    default:
+      indexSlideInfo = 0;
+      break;
+  }
+}
+ 
 /**
  * Ambil waktu sekarang dari RTC (jika ada) atau fallback ke timer internal.
  * Timezone offset diterapkan setelah mendapat waktu UTC dari RTC.
@@ -156,6 +413,10 @@ void ambilWaktuSekarang(int &jam, int &menit, int &detik,
     hari  = now.day();
     bulan = now.month();
     tahun = now.year();
+
+    if (bulan < 1 || bulan > 12) bulan = internalBulan;
+    if (hari < 1 || hari > 31) hari = internalHari;
+    if (tahun < 2020) tahun = internalTahun;
   } else {
     // Fallback timer internal
     unsigned long total = detikWaktuInternal + (millis() - millisSebelumnya) / 1000;
@@ -168,7 +429,9 @@ void ambilWaktuSekarang(int &jam, int &menit, int &detik,
     jam   = jamHitung;
     menit = (total / 60) % 60;
     detik = total % 60;
-    hari  = 22; bulan = 9; tahun = 2026;
+    hari  = internalHari;
+    bulan = internalBulan;
+    tahun = internalTahun;
   }
 }
 
@@ -181,8 +444,8 @@ Ticker timerP10;
 void refreshP10() {
   Disp.loop();
 
-  // Jika kecerahan 0 (layar dimatikan), bersihkan dan keluar
-  if (tingkat_kecerahan <= 0) {
+  // Jika kecerahan 0 atau mode tidur malam aktif, bersihkan dan keluar
+  if (tingkat_kecerahan <= 0 || isNightModeSleep) {
     Disp.clear();
     return;
   }
@@ -196,10 +459,12 @@ void refreshP10() {
 
       int j, m, d, hr, bl, th;
       ambilWaktuSekarang(j, m, d, hr, bl, th);
-      String stringJam = duaDigit(j) + ":" + duaDigit(m);
-
+      String stringJam = duaDigit(j);
+      String stringMenit = duaDigit(m);
+      String stringJam1 = duaDigit(j) + ":" + duaDigit(m);
       static unsigned long waktuGantiMode = 0;
       static bool tampilkanJam = true;
+
 
       // ---- Mode 1: Teks Berjalan ke Kiri ----
       if (mode_tampilan == 1) {
@@ -225,12 +490,8 @@ void refreshP10() {
     else if (mode_tampilan == 4) {
       static unsigned long waktuGantiMode = 0;
       static bool tampilkanJam = true;
-
-      // 1. Hitung panjang teks dalam piksel (font Mono5x lebarnya 6px per karakter)
-      int panjang_teks_px = teks_berjalan.length() * 6;
-
-      // 2. Hitung total jarak gulir dari luar kanan sampai habis ke luar kiri
-      int total_jarak_px = panjang_layar + panjang_teks_px;
+      int panjang_teks_px = teks_berjalan.length() * 6; // 1. Hitung panjang teks dalam piksel (font Mono5x lebarnya 6px per karakter)
+      int total_jarak_px = panjang_layar + panjang_teks_px; // 2. Hitung total jarak gulir dari luar kanan sampai habis ke luar kiri
 
       // 3. Hitung durasi berjalannya teks secara presisi (termasuk kecepatan_scroll)
       // Ditambah 1000ms (1 detik) delay pause setelah teks selesai gulir penuh
@@ -250,20 +511,24 @@ void refreshP10() {
       // }
 
       if (tampilkanJam) {
-        // Tampilkan jam HH:MM di tengah panel
-        int lebarJam = stringJam.length() * 6;
-        int tengah_X = (panjang_layar - lebarJam) / 2;
-        Disp.drawText(tengah_X, 1, stringJam);
-        // Tampilkan running text bergulir
-        Disp.drawText(posisi_X, 9, teks_berjalan);
-        int panjang_teks = teks_berjalan.length() * 6;
-        posisi_X--;
-        if (posisi_X < -panjang_teks) posisi_X = panjang_layar;
-        // Tahan teks di posisi akhir (luar layar) selama delay 1 detik
-        // if (posisi_X < -panjang_teks_px) {
-        //   posisi_X = -panjang_teks_px; 
-        //   }
-        }
+    // Tampilkan jam HH:MM di tengah panel
+    int lebarJam = stringJam.length() * 6;
+    int tengah_X = (panjang_layar - lebarJam) / 2;
+    // Disp.drawText(1, 0, stringJam); 
+    // Disp.drawText(posisi_X, 9, teks_berjalan);
+    // Disp.drawText(0, 9, " ");
+    // Disp.drawText(8, 9, " ");
+    // Disp.drawText(1, 9, stringMenit);
+    // renderInfoAtas(j, m, hr, bl, th); // ---- TEKS INFORMASI ATAS (X = 15, Y = 0): Hari -> Tanggal -> Sholat -> Jam Sholat ----
+
+    Disp.drawText(tengah_X, 0, stringJam1);             // Tampilkan jam HH:MM di tengah panel
+    Disp.drawText(posisi_X, 9, teks_berjalan);         // Tampilkan running text bergulir
+
+    // Logika pergerakan running text (tetap utuh)
+    int panjang_teks = teks_berjalan.length() * 6;
+    if (posisi_X < -panjang_teks) posisi_X = panjang_layar;
+    posisi_X--;
+}
       }
     } 
   }
@@ -280,19 +545,12 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
   // 1. ABAIKAN jika pesan berasal dari topik status milik ESP sendiri (mencegah feedback loop)
   if (String(topic) == String(mqtt_topic_status)) return;
 
-  // 2. Baca payload menjadi String
-  String pesanMasuk = "";
-  for (unsigned int i = 0; i < length; i++) {
-    pesanMasuk += (char)payload[i];
-  }
-
   Serial.print("Pesan Masuk [");
   Serial.print(topic);
-  Serial.print("]: ");
-  Serial.println(pesanMasuk);
+  Serial.printf("] (%u bytes)\n", length);
 
   DynamicJsonDocument doc(4096);
-  DeserializationError error = deserializeJson(doc, pesanMasuk);
+  DeserializationError error = deserializeJson(doc, payload, length);
 
   if (!error) {
     // ---- Filter ID Jam / mqtt_topic ----
@@ -329,7 +587,7 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
     if (teks_baru != "") {
       teksUtamaBackup = teks_baru; // SIMPAN JUGA KE BACKUP
       teks_berjalan = teks_baru;
-      posisi_X = panjang_layar; // Reset posisi ke awal
+      posisi_X = panjang_layar - 1; // Reset posisi ke awal
     }
   }
 
@@ -376,8 +634,11 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
           String dateStr = doc["date"].as<String>();
           if (dateStr.length() >= 10) {
             th = dateStr.substring(0, 4).toInt();
-            bl = dateStr.substring(5, 0).toInt();
+            bl = dateStr.substring(5, 7).toInt();
             hr = dateStr.substring(8, 10).toInt();
+            internalTahun = th;
+            internalBulan = bl;
+            internalHari  = hr;
           }
         }
 
@@ -387,61 +648,94 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
         } else {
           detikWaktuInternal = (unsigned long)j * 3600 + (unsigned long)m * 60 + d;
           millisSebelumnya   = millis();
-          Serial.printf("Jam Internal: %02d:%02d:%02d\n", j, m, d);
+          internalTahun = th;
+          internalBulan = bl;
+          internalHari  = hr;
+          Serial.printf("Jam Internal Disinkronkan: %04d-%02d-%02d %02d:%02d:%02d\n", th, bl, hr, j, m, d);
         }
       }
     }
 
-   // ---- 7. Update Jadwal & Efisiensi Energi ----
-// ---- 7. Update Jadwal & Efisiensi Energi ----
-bool isUpdateJadwal = (doc.containsKey("cmd") && doc["cmd"].as<String>() == "update_jadwal") ||
-                      (doc.containsKey("action") && doc["action"].as<String>() == "update_jadwal");
+    // ---- 7. Update Jadwal & Efisiensi Energi ----
+    bool isUpdateJadwal = (doc.containsKey("cmd") && doc["cmd"].as<String>() == "update_jadwal") ||
+                          (doc.containsKey("action") && doc["action"].as<String>() == "update_jadwal");
 
-if (isUpdateJadwal) {
-  // 1. Read Efficiency
-  if (doc.containsKey("efisiensi")) {
-    JsonObject eff = doc["efisiensi"];
-    String t = eff["tidur"] | "22:00";
-    String b = eff["bangun"] | "04:00";
-    jamTidur = t.substring(0, 2).toInt();
-    menitTidur = t.substring(3, 5).toInt();
-    jamBangun = b.substring(0, 2).toInt();
-    menitBangun = b.substring(3, 5).toInt();
-    kecerahanMalam = eff["kecerahan_malam"] | 10;
-    autoSleep = eff["auto_sleep"] | false;
-    efisiensiAktif = true;
-  }
+    if (isUpdateJadwal) {
+      // 1. Read Efficiency
+      if (doc.containsKey("efisiensi")) {
+        JsonObject eff = doc["efisiensi"];
+        String t = eff["tidur"] | "22:00";
+        String b = eff["bangun"] | "04:00";
+        jamTidur = t.substring(0, 2).toInt();
+        menitTidur = t.substring(3, 5).toInt();
+        jamBangun = b.substring(0, 2).toInt();
+        menitBangun = b.substring(3, 5).toInt();
+        kecerahanMalam = eff["kecerahan_malam"] | 1;
+        autoSleep = eff["auto_sleep"] | false;
+        efisiensiAktif = true;
+      }
 
-  // 2. Clear old schedules
-  jumlahJadwal = 0; 
+      // 2. Baca jadwal-jadwal terpisah: jadwal1 s/d jadwal10
+      bool adaJadwalTerpisah = false;
+      for (int i = 1; i <= MAX_JADWAL; i++) {
+        String key = "jadwal" + String(i);
+        if (doc.containsKey(key) && doc[key].is<JsonObject>()) {
+          adaJadwalTerpisah = true;
+          JsonObject item = doc[key];
+          int idx = i - 1;
 
-  // 3. Read Array SAFELY
-  if (doc.containsKey("jadwal") && doc["jadwal"].is<JsonArray>()) {
-    JsonArray arr = doc["jadwal"].as<JsonArray>();
-    
-    for (JsonVariant v : arr) {
-      if (!v.is<JsonObject>()) continue;
-      JsonObject item = v.as<JsonObject>();
+          String m = item["mulai"] | "00:00";
+          String s = item["selesai"] | "00:00";
+          String msg = item["pesan"] | "";
 
-      if (jumlahJadwal < MAX_JADWAL) {
-        String m = item["mulai"] | "00:00";
-        String s = item["selesai"] | "00:00";
-        String msg = item["pesan"] | "";
-
-        if (msg.length() > 0) {
-          // Robust 24h Time Parsing (Handles "9:00" and "09:00")
           int idxColonM = m.indexOf(':');
           int idxColonS = s.indexOf(':');
 
-          if (idxColonM != -1 && idxColonS != -1) {
+          daftarJadwal[idx].nama = item["nama"] | ("Jadwal " + String(i));
+          daftarJadwal[idx].jamMulai = (idxColonM != -1) ? m.substring(0, idxColonM).toInt() : 0;
+          daftarJadwal[idx].menitMulai = (idxColonM != -1) ? m.substring(idxColonM + 1).toInt() : 0;
+          daftarJadwal[idx].jamSelesai = (idxColonS != -1) ? s.substring(0, idxColonS).toInt() : 0;
+          daftarJadwal[idx].menitSelesai = (idxColonS != -1) ? s.substring(idxColonS + 1).toInt() : 0;
+          daftarJadwal[idx].pesan = msg;
+
+          Serial.printf("--> [Terpisah] Slot #%d [%s]: %02d:%02d to %02d:%02d -> Msg: '%s'\n",
+                        i,
+                        daftarJadwal[idx].nama.c_str(),
+                        daftarJadwal[idx].jamMulai,
+                        daftarJadwal[idx].menitMulai,
+                        daftarJadwal[idx].jamSelesai,
+                        daftarJadwal[idx].menitSelesai,
+                        daftarJadwal[idx].pesan.c_str());
+        }
+      }
+
+      if (adaJadwalTerpisah) {
+        jumlahJadwal = MAX_JADWAL;
+      } else if (doc.containsKey("jadwal") && doc["jadwal"].is<JsonArray>()) {
+        // 3. Fallback: Baca Array Jadwal
+        jumlahJadwal = 0;
+        JsonArray arr = doc["jadwal"].as<JsonArray>();
+        
+        for (JsonVariant v : arr) {
+          if (!v.is<JsonObject>()) continue;
+          JsonObject item = v.as<JsonObject>();
+
+          if (jumlahJadwal < MAX_JADWAL) {
+            String m = item["mulai"] | "00:00";
+            String s = item["selesai"] | "00:00";
+            String msg = item["pesan"] | "";
+
+            int idxColonM = m.indexOf(':');
+            int idxColonS = s.indexOf(':');
+
             daftarJadwal[jumlahJadwal].nama = item["nama"] | ("Jadwal " + String(jumlahJadwal + 1));
-            daftarJadwal[jumlahJadwal].jamMulai = m.substring(0, idxColonM).toInt();
-            daftarJadwal[jumlahJadwal].menitMulai = m.substring(idxColonM + 1).toInt();
-            daftarJadwal[jumlahJadwal].jamSelesai = s.substring(0, idxColonS).toInt();
-            daftarJadwal[jumlahJadwal].menitSelesai = s.substring(idxColonS + 1).toInt();
+            daftarJadwal[jumlahJadwal].jamMulai = (idxColonM != -1) ? m.substring(0, idxColonM).toInt() : 0;
+            daftarJadwal[jumlahJadwal].menitMulai = (idxColonM != -1) ? m.substring(idxColonM + 1).toInt() : 0;
+            daftarJadwal[jumlahJadwal].jamSelesai = (idxColonS != -1) ? s.substring(0, idxColonS).toInt() : 0;
+            daftarJadwal[jumlahJadwal].menitSelesai = (idxColonS != -1) ? s.substring(idxColonS + 1).toInt() : 0;
             daftarJadwal[jumlahJadwal].pesan = msg;
-            
-            Serial.printf("--> Loaded Schedule #%d [%s]: %02d:%02d to %02d:%02d -> Msg: %s\n",
+
+            Serial.printf("--> Slot #%d [%s]: %02d:%02d to %02d:%02d -> Msg: '%s'\n",
                           jumlahJadwal + 1,
                           daftarJadwal[jumlahJadwal].nama.c_str(),
                           daftarJadwal[jumlahJadwal].jamMulai,
@@ -454,18 +748,25 @@ if (isUpdateJadwal) {
           }
         }
       }
+      Serial.printf("Jadwal updated successfully! Total slot: %d\n", jumlahJadwal);
     }
-  }
-  Serial.printf("Jadwal updated successfully! Active count: %d\n", jumlahJadwal);
-}
     teksSedangDiupdate = false;
 
-    // Simpan ke Flash LittleFS
-    File f = LittleFS.open("/config.json", "w");
-    if (f) {
-      serializeJson(doc, f);
-      f.close();
-      Serial.println("Konfigurasi disimpan ke LittleFS.");
+    // Simpan ke Flash LittleFS terpisah agar tidak saling menimpa
+    if (isUpdateJadwal) {
+      File f = LittleFS.open("/jadwal.json", "w");
+      if (f) {
+        serializeJson(doc, f);
+        f.close();
+        Serial.println("Jadwal & Efisiensi disimpan ke LittleFS (/jadwal.json).");
+      }
+    } else {
+      File f = LittleFS.open("/config.json", "w");
+      if (f) {
+        serializeJson(doc, f);
+        f.close();
+        Serial.println("Konfigurasi Tampilan disimpan ke LittleFS (/config.json).");
+      }
     }
   } else {
     Serial.println("Gagal parse JSON MQTT.");
@@ -485,10 +786,22 @@ void periksaJadwalDanEfisiensi() {
   String pesanJadwalKetemu = "";
 
   for (int i = 0; i < jumlahJadwal; i++) {
+    // Lewati slot jika pesan kosong
+    if (daftarJadwal[i].pesan.length() == 0) continue;
+
     int mulai = (daftarJadwal[i].jamMulai * 60) + daftarJadwal[i].menitMulai;
     int selesai = (daftarJadwal[i].jamSelesai * 60) + daftarJadwal[i].menitSelesai;
+    if (mulai == selesai) continue;
 
-    if (menitSekarang >= mulai && menitSekarang < selesai) {
+    bool aktifSaatIni = false;
+    if (mulai <= selesai) {
+      aktifSaatIni = (menitSekarang >= mulai && menitSekarang < selesai);
+    } else {
+      // Jadwal melintasi tengah malam (misal 21:00 sampai 04:00)
+      aktifSaatIni = (menitSekarang >= mulai || menitSekarang < selesai);
+    }
+
+    if (aktifSaatIni) {
       pesanJadwalKetemu = daftarJadwal[i].pesan;
       adaJadwalAktif = true;
       break; 
@@ -499,6 +812,7 @@ void periksaJadwalDanEfisiensi() {
     if (teks_berjalan != pesanJadwalKetemu) {
       teks_berjalan = pesanJadwalKetemu;
       posisi_X = panjang_layar;
+      kecepatan_scroll = kecepatan_scroll * 1.5;
     }
   } else {
     // Revert to Main Backup Text during gaps or when schedules complete
@@ -523,14 +837,19 @@ void periksaJadwalDanEfisiensi() {
 
     if (isMalam) {
       if (autoSleep) {
+        isNightModeSleep = true;
         Disp.setBrightness(0);
         Disp.clear();
       } else {
+        isNightModeSleep = false;
         Disp.setBrightness(kecerahanMalam);
       }
     } else {
+      isNightModeSleep = false;
       Disp.setBrightness(tingkat_kecerahan);
     }
+  } else {
+    isNightModeSleep = false;
   }
 }
 // ============================================================
@@ -594,19 +913,94 @@ void setup() {
 
   // Muat pengaturan tersimpan dari LittleFS
   if (LittleFS.begin()) {
+    // 1. Muat Konfigurasi Tampilan & Jam (/config.json)
     if (LittleFS.exists("/config.json")) {
       File file = LittleFS.open("/config.json", "r");
       if (file) {
         DynamicJsonDocument doc(4096);
         if (!deserializeJson(doc, file)) {
-          if (doc.containsKey("teks"))       teks_berjalan     = doc["teks"].as<String>();
+          if (doc.containsKey("teks")) {
+            teks_berjalan     = doc["teks"].as<String>();
+            teksUtamaBackup   = teks_berjalan;
+          }
           if (doc.containsKey("brightness")) tingkat_kecerahan = doc["brightness"];
           if (doc.containsKey("speed"))      kecepatan_scroll  = doc["speed"];
           if (doc.containsKey("mode"))       mode_tampilan     = doc["mode"];
           if (doc.containsKey("timezone"))   timezone_offset   = doc["timezone"];
-          Serial.println("Konfigurasi LittleFS dimuat.");
         }
         file.close();
+      }
+    }
+
+    // 2. Muat Jadwal & Efisiensi Energi (/jadwal.json atau fallback ke /config.json)
+    String fileJadwalPath = LittleFS.exists("/jadwal.json") ? "/jadwal.json" : "/config.json";
+    if (LittleFS.exists(fileJadwalPath)) {
+      File fileJ = LittleFS.open(fileJadwalPath, "r");
+      if (fileJ) {
+        DynamicJsonDocument docJ(4096);
+        if (!deserializeJson(docJ, fileJ)) {
+          if (docJ.containsKey("efisiensi")) {
+            JsonObject eff = docJ["efisiensi"];
+            String t = eff["tidur"] | "22:00";
+            String b = eff["bangun"] | "04:00";
+            jamTidur = t.substring(0, 2).toInt();
+            menitTidur = t.substring(3, 5).toInt();
+            jamBangun = b.substring(0, 2).toInt();
+            menitBangun = b.substring(3, 5).toInt();
+            kecerahanMalam = eff["kecerahan_malam"] | 1;
+            autoSleep = eff["auto_sleep"] | false;
+            efisiensiAktif = true;
+          }
+
+          bool adaJadwalTerpisah = false;
+          for (int i = 1; i <= MAX_JADWAL; i++) {
+            String key = "jadwal" + String(i);
+            if (docJ.containsKey(key) && docJ[key].is<JsonObject>()) {
+              adaJadwalTerpisah = true;
+              JsonObject item = docJ[key];
+              int idx = i - 1;
+              String m = item["mulai"] | "00:00";
+              String s = item["selesai"] | "00:00";
+              String msg = item["pesan"] | "";
+              int idxColonM = m.indexOf(':');
+              int idxColonS = s.indexOf(':');
+              daftarJadwal[idx].nama = item["nama"] | ("Jadwal " + String(i));
+              daftarJadwal[idx].jamMulai = (idxColonM != -1) ? m.substring(0, idxColonM).toInt() : 0;
+              daftarJadwal[idx].menitMulai = (idxColonM != -1) ? m.substring(idxColonM + 1).toInt() : 0;
+              daftarJadwal[idx].jamSelesai = (idxColonS != -1) ? s.substring(0, idxColonS).toInt() : 0;
+              daftarJadwal[idx].menitSelesai = (idxColonS != -1) ? s.substring(idxColonS + 1).toInt() : 0;
+              daftarJadwal[idx].pesan = msg;
+            }
+          }
+
+          if (adaJadwalTerpisah) {
+            jumlahJadwal = MAX_JADWAL;
+          } else if (docJ.containsKey("jadwal") && docJ["jadwal"].is<JsonArray>()) {
+            JsonArray arr = docJ["jadwal"].as<JsonArray>();
+            jumlahJadwal = 0;
+            for (JsonVariant v : arr) {
+              if (!v.is<JsonObject>()) continue;
+              JsonObject item = v.as<JsonObject>();
+              if (jumlahJadwal < MAX_JADWAL) {
+                String m = item["mulai"] | "00:00";
+                String s = item["selesai"] | "00:00";
+                String msg = item["pesan"] | "";
+
+                int idxColonM = m.indexOf(':');
+                int idxColonS = s.indexOf(':');
+                daftarJadwal[jumlahJadwal].nama = item["nama"] | ("Jadwal " + String(jumlahJadwal + 1));
+                daftarJadwal[jumlahJadwal].jamMulai = (idxColonM != -1) ? m.substring(0, idxColonM).toInt() : 0;
+                daftarJadwal[jumlahJadwal].menitMulai = (idxColonM != -1) ? m.substring(idxColonM + 1).toInt() : 0;
+                daftarJadwal[jumlahJadwal].jamSelesai = (idxColonS != -1) ? s.substring(0, idxColonS).toInt() : 0;
+                daftarJadwal[jumlahJadwal].menitSelesai = (idxColonS != -1) ? s.substring(idxColonS + 1).toInt() : 0;
+                daftarJadwal[jumlahJadwal].pesan = msg;
+                jumlahJadwal++;
+              }
+            }
+          }
+          Serial.printf("Konfigurasi LittleFS dimuat. Jadwal aktif: %d\n", jumlahJadwal);
+        }
+        fileJ.close();
       }
     }
   }
@@ -637,8 +1031,9 @@ void setup() {
     Serial.println("\n[PERINGATAN] WiFi gagal. Periksa SSID/Password di baris 46-47.");
   }
 
-  // Inisialisasi MQTT client
+  // Inisialisasi MQTT client (buffer 4096 byte agar mampu menampung paket jadwal lengkap)
   mqttClient.setServer(mqtt_server, mqtt_port);
+  mqttClient.setBufferSize(4096);
   mqttClient.setCallback(saatPesanMqttMasuk);
 }
 
