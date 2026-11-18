@@ -17,9 +17,16 @@
 //   - mqtt_topic dan mqtt_topic_status bisa diubah sesuai unit alat ini
 // ====================================================================
 
+#include <Bitmap.h>
+#include <DMDESP.h>
 #include <ESP8266WiFi.h>  // Konektivitas WiFi ESP8266
 #include <PubSubClient.h> // Library MQTT Client
 #include <DMDESP.h>       // Library Driver P10 LED Matrix
+#include <fonts/EMSans6x8.h> // Font Standar P10
+#include <fonts/EMSans6x16.h> // Font Standar P10
+#include <fonts/ElektronMart6x12.h> // Font Standar P10
+#include <fonts/ElektronMart6x16.h> // Font Standar P10
+#include <fonts/DejaVuSansBold9.h> // Font Standar P10
 #include <fonts/Mono5x7.h> // Font Standar P10
 #include <Ticker.h>       // Background Refresh Timer
 #include <ArduinoJson.h>  // Parser JSON dari Web Dashboard
@@ -33,8 +40,8 @@
 // SECTION 1: KONFIGURASI WIFI
 // Ubah ssid dan password sesuai jaringan WiFi Anda.
 // ============================================================
-const char* ssid     = "KalaClock";
-const char* password = "kalaclock01";
+const char* ssid     = "Infinix HOT 20S";
+const char* password = "inf8n8x20s";
 
 // ============================================================
 // SECTION 2: KONFIGURASI MQTT
@@ -70,7 +77,7 @@ PubSubClient  mqttClient(espClient);
 // ============================================================
 // SECTION 5: HARDWARE DISPLAY P10 & RTC
 // ============================================================
-#define DISPLAYS_WIDE 1 // Ubah ke 2 jika memakai 2 panel (64x16)
+#define DISPLAYS_WIDE 1 // Ubah ke 1 (32x16), 2 (64x16), atau 3 (96x16)
 #define DISPLAYS_HIGH 1
 DMDESP Disp(DISPLAYS_WIDE, DISPLAYS_HIGH);
 
@@ -90,7 +97,7 @@ int    posisi_X        = 32;
 int    panjang_layar   = 32;
 int    mode_tampilan   = 4;    // 1=Kiri, 2=Statis, 3=Kanan, 4=Jam+Teks
 int    kecepatan_scroll= 50;   // ms per geser
-int    tingkat_kecerahan= 15;  // 0-255, default 100
+int    tingkat_kecerahan= 255;  // 0-255, default 100
 int    timezone_offset = 8;    // UTC+8 (WITA)
 
 // Timer internal fallback jika RTC tidak terpasang
@@ -277,113 +284,782 @@ void drawTanggalKustom(int startX, int startY, int d, int bl, int y) {
 }
 
 // ============================================================
-// ANIMASI ROLLING TEKS INFORMASI ATAS (X = 15, Y = -8 s.d. 0)
-// Siklus 12 Slide Bergantian 1-1 (2.5 Detik per slide):
-// Hari -> Tanggal -> Subuh -> Jam -> Zuhur -> Jam -> Asar -> Jam -> Magrib -> Jam -> Isya -> Jam
+// MODE 4: SLIDESHOW INFORMASI MULTI-SLIDE ANIMASI
+// Slide 1: Jam (stringJam ElektronMart6x16, stringMenit & stringDetik DejaVuSansBold9) - 5s
+// Slide 2: Tanggal (Hari & Tanggal DD Mon) - 2.5s
+// Slide 3-7: Sholat 5 Waktu (Subuh, Zuhur/Jum'at, Asar, Magrib, ISYA & Jam) - 2.5s
+// Slide 8: Running Text (DejaVuSansBold9, Y: 3) tampil minimal 2 kali -> Kembali ke Slide 1
+// Alert Sholat: Teks "Sekarang Sudah Memasuki Waktu {Sholat}." berjalan 2 menit, lalu layar clear 5 menit
 // ============================================================
-enum AnimasiInfoState {
-  INFO_SLIDE_IN,   // Dari Y = -8 ke Y = 0
-  INFO_HOLD,       // Tahan diam di Y = 0 selama 2.5 detik
-  INFO_SLIDE_OUT   // Naik dari Y = 0 ke Y = -8
+enum Mode4SlideType {
+  M4_SLIDE_CLOCK = 0,
+  M4_SLIDE_DATE  = 1,
+  M4_SLIDE_SUBUH = 2,
+  M4_SLIDE_ZUHUR = 3,
+  M4_SLIDE_ASAR  = 4,
+  M4_SLIDE_MAGRIB = 5,
+  M4_SLIDE_ISYA  = 6,
+  M4_SLIDE_TEKS  = 7
 };
 
-static AnimasiInfoState statusAnimInfo = INFO_SLIDE_IN;
-static int curY_Info = -8;
-static unsigned long waktuHoldInfo = 0;
-static int indexSlideInfo = 0; 
+enum M4AnimState {
+  M4_ANIM_IN,
+  M4_ANIM_HOLD,
+  M4_ANIM_OUT,
+  M4_ANIM_DELAY
+};
 
-void updateAnimasiInfo() {
-  if (statusAnimInfo == INFO_SLIDE_IN) {
-    curY_Info++;
-    if (curY_Info >= 0) {
-      curY_Info = 0;
-      statusAnimInfo = INFO_HOLD;
-      waktuHoldInfo = millis();
+// State Alert Waktu Sholat (Aktif untuk semua ukuran panel)
+enum SholatAlertState {
+  ALERT_INAKTIF = 0,
+  ALERT_RUNNING_TEKS,
+  ALERT_CLEAR_LAYAR
+};
+
+static SholatAlertState statusAlertSholat = ALERT_INAKTIF;
+static unsigned long waktuMulaiAlertSholat = 0;
+static String pesanAlertSholat = "";
+static int posisi_X_alert = 32;
+static String lastAlertSholatHari = "";
+
+#if DISPLAYS_WIDE == 1
+
+// ============================================================
+// DISPLAYS_WIDE == 1 (32x16): 1 PANEL
+// ============================================================
+static Mode4SlideType m4Slide = M4_SLIDE_CLOCK;
+static M4AnimState m4AnimState = M4_ANIM_IN;
+static unsigned long m4Timer = 0;
+
+static int m4JamX = -14;
+static int m4MenitY = -9;
+static int m4DetikY = 17;
+
+static int m4TopY = -9;
+static int m4BottomY = 17;
+static int m4TeksCount = 0;
+
+void renderM4SplitSlide(const String &topText, const String &bottomText) {
+  Disp.setFont(DejaVuSansBold9);
+  int lebarTop = topText.length() * 5;
+  int xTop = (panjang_layar - lebarTop) / 2 - 1;
+  Disp.drawText(xTop, m4TopY, topText);
+
+  int lebarBottom = bottomText.length() * 5;
+  int xBottom = (panjang_layar - lebarBottom) / 2 - 1;
+  Disp.drawText(xBottom, m4BottomY, bottomText);
+
+  if (m4AnimState == M4_ANIM_IN) {
+    if (m4TopY < 0) m4TopY++;
+    if (m4BottomY > 8) m4BottomY--;
+
+    if (m4TopY >= 0 && m4BottomY <= 8) {
+      m4TopY = 0;
+      m4BottomY = 8;
+      m4AnimState = M4_ANIM_HOLD;
+      m4Timer = millis();
     }
-  } else if (statusAnimInfo == INFO_HOLD) {
-    curY_Info = 0;
-    if (millis() - waktuHoldInfo >= 2500) { // 2.5 Detik
-      statusAnimInfo = INFO_SLIDE_OUT;
+  } else if (m4AnimState == M4_ANIM_HOLD) {
+    m4TopY = 0;
+    m4BottomY = 8;
+    if (millis() - m4Timer >= 2500) { // 2.5 Detik
+      m4AnimState = M4_ANIM_OUT;
     }
-  } else if (statusAnimInfo == INFO_SLIDE_OUT) {
-    curY_Info--;
-    if (curY_Info <= -8) {
-      curY_Info = -8;
-      indexSlideInfo = (indexSlideInfo + 1) % 12; // 12 Slide bergantian penuh
-      statusAnimInfo = INFO_SLIDE_IN;
+  } else if (m4AnimState == M4_ANIM_OUT) {
+    if (m4TopY > -9) m4TopY--;
+    if (m4BottomY < 17) m4BottomY++;
+
+    if (m4TopY <= -9 && m4BottomY >= 17) {
+      m4TopY = -9;
+      m4BottomY = 17;
+      m4AnimState = M4_ANIM_IN;
+      m4Slide = (Mode4SlideType)((int)m4Slide + 1);
+      if (m4Slide == M4_SLIDE_TEKS) {
+        posisi_X = panjang_layar;
+        m4TeksCount = 0;
+      }
     }
   }
 }
 
-void renderInfoAtas(int jam, int menit, int hari, int bl, int tahun) {
-  updateAnimasiInfo();
+void renderSlide1Clock(const String &stringJam, const String &stringMenit, const String &stringDetik) {
+  Disp.setFont(ElektronMart6x16);
+  Disp.drawText(m4JamX, 0, stringJam);
+
+  Disp.setFont(DejaVuSansBold9);
+  Disp.drawText(18, m4MenitY, stringMenit);
+  Disp.drawText(18, m4DetikY, stringDetik);
+
+  if (m4AnimState == M4_ANIM_IN) {
+    if (m4JamX < 1) m4JamX++;
+    if (m4MenitY < -1) m4MenitY++;
+    if (m4DetikY > 8) m4DetikY--;
+
+    if (m4JamX >= 1 && m4MenitY >= -1 && m4DetikY <= 8) {
+      m4JamX = 1;
+      m4MenitY = -1;
+      m4DetikY = 8;
+      m4AnimState = M4_ANIM_HOLD;
+      m4Timer = millis();
+    }
+  } else if (m4AnimState == M4_ANIM_HOLD) {
+    m4JamX = 1;
+    m4MenitY = -1;
+    m4DetikY = 8;
+    if (millis() - m4Timer >= 5000) { // Tahan 5 detik
+      m4AnimState = M4_ANIM_OUT;
+    }
+  } else if (m4AnimState == M4_ANIM_OUT) {
+    if (m4JamX > -14) m4JamX--;
+    if (m4MenitY > -9) m4MenitY--;
+    if (m4DetikY < 17) m4DetikY++;
+
+    if (m4JamX <= -14 && m4MenitY <= -9 && m4DetikY >= 17) {
+      m4JamX = -14;
+      m4MenitY = -9;
+      m4DetikY = 17;
+      m4TopY = -9;
+      m4BottomY = 17;
+      m4AnimState = M4_ANIM_IN;
+      m4Slide = M4_SLIDE_DATE;
+    }
+  }
+}
+
+void renderSlide2Date(int hr, int bl, int th) {
+  int hariIdx = hitungHariDalamSeminggu(th, bl, hr);
+  int bulanValid = (bl >= 1 && bl <= 12) ? bl : 11;
+  String strHari = NAMA_HARI[hariIdx];
+  String strTanggal = String(hr) + NAMA_BULAN_CAPS[bulanValid];
+  renderM4SplitSlide(strHari, strTanggal);
+}
+
+void renderSlide3to7Sholat(int hr, int bl, int th) {
+  String jSubuh, jZuhur, jAsar, jMagrib, jIsya;
+  hitung5WaktuSholat(th, bl, hr, timezone_offset, jSubuh, jZuhur, jAsar, jMagrib, jIsya);
+
+  String sholatLabel = "";
+  String sholatTime = "";
+
+  switch (m4Slide) {
+    case M4_SLIDE_SUBUH:
+      sholatLabel = "Subuh";
+      sholatTime = jSubuh;
+      break;
+    case M4_SLIDE_ZUHUR: {
+      int hariIdx = hitungHariDalamSeminggu(th, bl, hr);
+      sholatLabel = (hariIdx == 5) ? "Jum'at" : "Zuhur";
+      sholatTime = jZuhur;
+      break;
+    }
+    case M4_SLIDE_ASAR:
+      sholatLabel = "Asar";
+      sholatTime = jAsar;
+      break;
+    case M4_SLIDE_MAGRIB:
+      sholatLabel = "Magrib";
+      sholatTime = jMagrib;
+      break;
+    case M4_SLIDE_ISYA:
+      sholatLabel = "ISYA";
+      sholatTime = jIsya;
+      break;
+    default:
+      break;
+  }
+
+  renderM4SplitSlide(sholatLabel, sholatTime);
+}
+
+void renderSlide8Teks() {
+  int panjang_teks_px = teks_berjalan.length() * 7;
+
+  if (m4AnimState != M4_ANIM_DELAY) {
+    Disp.setFont(ElektronMart6x12);
+    Disp.drawText(posisi_X, 2, teks_berjalan);
+    posisi_X--;
+
+    if (posisi_X < -panjang_teks_px) {
+      m4AnimState = M4_ANIM_DELAY;
+      m4Timer = millis();
+      m4TeksCount++;
+    }
+  } else {
+    // Delay 300 ms setelah selesai tampil
+    if (millis() - m4Timer >= 300) {
+      if (m4TeksCount < 2) {
+        // Tampilkan lagi (total minimal 2 kali)
+        posisi_X = panjang_layar;
+        m4AnimState = M4_ANIM_IN;
+      } else {
+        // Sudah tampil setidaknya 2 kali, kembali ke Slide 1
+        m4TeksCount = 0;
+        m4Slide = M4_SLIDE_CLOCK;
+        m4AnimState = M4_ANIM_IN;
+        m4JamX = -14;
+        m4MenitY = -9;
+        m4DetikY = 17;
+      }
+    }
+  }
+}
+
+#elif DISPLAYS_WIDE == 2
+
+// ============================================================
+// DISPLAYS_WIDE == 2 (64x16): SPLIT DUAL PANEL
+// ============================================================
+enum M4Wide2State {
+  W2_SLIDE1_ACTIVE,
+  W2_SLIDE1_OUT,
+  W2_SLIDE2_IN,
+  W2_SLIDE2_HOLD,
+  W2_SLIDE2_OUT
+};
+
+enum AnimasiInfoState {
+  INFO_SLIDE_IN,
+  INFO_HOLD,
+  INFO_SLIDE_OUT
+};
+
+static M4Wide2State statusWide2 = W2_SLIDE1_ACTIVE;
+static unsigned long waktuMulaiSlide1_W2 = 0;
+static unsigned long waktuHoldSlide2_W2 = 0;
+
+static int teksCycleCount_W2 = 0;
+static int infoCycleCount_W2 = 0;
+
+// Animasi InfoAtas
+static AnimasiInfoState statusAnimInfo_W2 = INFO_SLIDE_IN;
+static int curY_Info_W2 = -8;
+static unsigned long waktuHoldInfo_W2 = 0;
+static int indexSlideInfo_W2 = 0;
+
+static int curClockX_W2 = 1;
+static int curClockJamY_W2 = 0;
+static int curClockMenitY_W2 = 8;
+static int curTeksY_W2 = 7;
+static int curClockFullY_W2 = -16;
+
+void updateAnimasiInfo_W2() {
+  if (statusAnimInfo_W2 == INFO_SLIDE_IN) {
+    curY_Info_W2++;
+    if (curY_Info_W2 >= 0) {
+      curY_Info_W2 = 0;
+      statusAnimInfo_W2 = INFO_HOLD;
+      waktuHoldInfo_W2 = millis();
+    }
+  } else if (statusAnimInfo_W2 == INFO_HOLD) {
+    curY_Info_W2 = 0;
+    if (millis() - waktuHoldInfo_W2 >= 2500) { // 2.5 Detik
+      statusAnimInfo_W2 = INFO_SLIDE_OUT;
+    }
+  } else if (statusAnimInfo_W2 == INFO_SLIDE_OUT) {
+    curY_Info_W2--;
+    if (curY_Info_W2 <= -8) {
+      curY_Info_W2 = -8;
+      indexSlideInfo_W2 = (indexSlideInfo_W2 + 1) % 12;
+      if (indexSlideInfo_W2 == 0) {
+        infoCycleCount_W2++;
+      }
+      statusAnimInfo_W2 = INFO_SLIDE_IN;
+    }
+  }
+}
+
+void renderInfoAtas_W2(int hr, int bl, int th, int baseY) {
+  updateAnimasiInfo_W2();
 
   String jSubuh, jZuhur, jAsar, jMagrib, jIsya;
-  hitung5WaktuSholat(tahun, bl, hari, timezone_offset, jSubuh, jZuhur, jAsar, jMagrib, jIsya);
+  hitung5WaktuSholat(th, bl, hr, timezone_offset, jSubuh, jZuhur, jAsar, jMagrib, jIsya);
 
-  auto drawCentered = [](int curY, const String &teks) {
-    int lebar = teks.length() * 6;
+  Disp.setFont(DejaVuSansBold9);
+  auto drawCenteredW2 = [&](int yOffset, const String &teks) {
+    int lebar = teks.length() * 5;
     int xCentered = 15 + ((49 - lebar) / 2);
     if (xCentered < 15) xCentered = 15;
-    Disp.drawText(xCentered, curY, teks);
+    Disp.drawText(xCentered, yOffset, teks);
   };
 
-  switch (indexSlideInfo) {
+  int renderY = curY_Info_W2 + baseY;
+
+  switch (indexSlideInfo_W2) {
     case 0: {
-      // Slide 0: Hari ("Senin")
-      int hariIdx = hitungHariDalamSeminggu(tahun, bl, hari);
-      drawCentered(curY_Info, NAMA_HARI[hariIdx]);
+      int hariIdx = hitungHariDalamSeminggu(th, bl, hr);
+      drawCenteredW2(renderY, NAMA_HARI[hariIdx]);
       break;
     }
     case 1: {
-      // Slide 1: Tanggal ("2NOV2026" dengan gap 2px)
-      drawTanggalKustom(14, curY_Info, hari, bl, tahun);
+      String strTgl = String(hr) + NAMA_BULAN_CAPS[(bl >= 1 && bl <= 12) ? bl : 11];
+      drawCenteredW2(renderY, strTgl);
       break;
     }
     case 2:
-      // Slide 2: "Subuh"
-      drawCentered(curY_Info, "Subuh");
+      drawCenteredW2(renderY, "Subuh");
       break;
     case 3:
-      // Slide 3: Jam Subuh ("04:41")
-      drawCentered(curY_Info, jSubuh);
+      drawCenteredW2(renderY, jSubuh);
       break;
-    case 4:
-      // Slide 4: "Zuhur"
-      drawCentered(curY_Info, "Zuhur");
+    case 4: {
+      int hariIdx = hitungHariDalamSeminggu(th, bl, hr);
+      drawCenteredW2(renderY, (hariIdx == 5) ? "Jum'at" : "Zuhur");
       break;
+    }
     case 5:
-      // Slide 5: Jam Zuhur ("12:08")
-      drawCentered(curY_Info, jZuhur);
+      drawCenteredW2(renderY, jZuhur);
       break;
     case 6:
-      // Slide 6: "Asar"
-      drawCentered(curY_Info, "Asar");
+      drawCenteredW2(renderY, "Asar");
       break;
     case 7:
-      // Slide 7: Jam Asar ("15:26")
-      drawCentered(curY_Info, jAsar);
+      drawCenteredW2(renderY, jAsar);
       break;
     case 8:
-      // Slide 8: "Magrib"
-      drawCentered(curY_Info, "Magrib");
+      drawCenteredW2(renderY, "Magrib");
       break;
     case 9:
-      // Slide 9: Jam Magrib ("18:15")
-      drawCentered(curY_Info, jMagrib);
+      drawCenteredW2(renderY, jMagrib);
       break;
     case 10:
-      // Slide 10: "Isya"
-      drawCentered(curY_Info, "Isya");
+      drawCenteredW2(renderY, "ISYA");
       break;
     case 11:
-      // Slide 11: Jam Isya ("19:26")
-      drawCentered(curY_Info, jIsya);
+      drawCenteredW2(renderY, jIsya);
       break;
     default:
-      indexSlideInfo = 0;
+      indexSlideInfo_W2 = 0;
       break;
   }
+}
+
+#else // DISPLAYS_WIDE == 3
+
+// ============================================================
+// DISPLAYS_WIDE == 3 (96x16): 3 PANEL WIDESCREEN
+// ============================================================
+enum M4Wide3State {
+  W3_SLIDE1_ACTIVE,
+  W3_SLIDE1_OUT,
+  W3_SLIDE2_IN,
+  W3_SLIDE2_HOLD,
+  W3_SLIDE2_OUT
+};
+
+enum AnimasiInfoState3 {
+  INFO3_SLIDE_IN,
+  INFO3_HOLD,
+  INFO3_SLIDE_OUT
+};
+
+static M4Wide3State statusWide3 = W3_SLIDE1_ACTIVE;
+static unsigned long waktuMulaiSlide1_W3 = 0;
+static unsigned long waktuHoldSlide2_W3 = 0;
+
+static int teksCycleCount_W3 = 0;
+static int infoCycleCount_W3 = 0;
+
+static AnimasiInfoState3 statusAnimInfo_W3 = INFO3_SLIDE_IN;
+static int curY_Info_W3 = -8;
+static unsigned long waktuHoldInfo_W3 = 0;
+static int indexSlideInfo_W3 = 0;
+
+static int curClockP1_X_W3 = 1;
+static int curInfoP23_Y_W3 = 0;
+static int curTeksP23_Y_W3 = 7;
+static int curClockFullY_W3 = -16;
+
+void updateAnimasiInfo_W3() {
+  if (statusAnimInfo_W3 == INFO3_SLIDE_IN) {
+    curY_Info_W3++;
+    if (curY_Info_W3 >= 0) {
+      curY_Info_W3 = 0;
+      statusAnimInfo_W3 = INFO3_HOLD;
+      waktuHoldInfo_W3 = millis();
+    }
+  } else if (statusAnimInfo_W3 == INFO3_HOLD) {
+    curY_Info_W3 = 0;
+    if (millis() - waktuHoldInfo_W3 >= 2500) {
+      statusAnimInfo_W3 = INFO3_SLIDE_OUT;
+    }
+  } else if (statusAnimInfo_W3 == INFO3_SLIDE_OUT) {
+    curY_Info_W3--;
+    if (curY_Info_W3 <= -8) {
+      curY_Info_W3 = -8;
+      indexSlideInfo_W3 = (indexSlideInfo_W3 + 1) % 12;
+      if (indexSlideInfo_W3 == 0) {
+        infoCycleCount_W3++;
+      }
+      statusAnimInfo_W3 = INFO3_SLIDE_IN;
+    }
+  }
+}
+
+void renderInfoAtas_W3(int hr, int bl, int th, int baseY) {
+  updateAnimasiInfo_W3();
+
+  String jSubuh, jZuhur, jAsar, jMagrib, jIsya;
+  hitung5WaktuSholat(th, bl, hr, timezone_offset, jSubuh, jZuhur, jAsar, jMagrib, jIsya);
+
+  Disp.setFont(DejaVuSansBold9);
+  auto drawCenteredW3 = [&](int yOffset, const String &teks) {
+    int lebar = teks.length() * 5;
+    int xCentered = 32 + ((64 - lebar) / 2);
+    if (xCentered < 32) xCentered = 32;
+    Disp.drawText(xCentered, yOffset, teks);
+  };
+
+  int renderY = curY_Info_W3 + baseY;
+
+  switch (indexSlideInfo_W3) {
+    case 0: {
+      int hariIdx = hitungHariDalamSeminggu(th, bl, hr);
+      drawCenteredW3(renderY, NAMA_HARI[hariIdx]);
+      break;
+    }
+    case 1: {
+      String strTgl = String(hr) + NAMA_BULAN_CAPS[(bl >= 1 && bl <= 12) ? bl : 11];
+      drawCenteredW3(renderY, strTgl);
+      break;
+    }
+    case 2:
+      drawCenteredW3(renderY, "Subuh");
+      break;
+    case 3:
+      drawCenteredW3(renderY, jSubuh);
+      break;
+    case 4: {
+      int hariIdx = hitungHariDalamSeminggu(th, bl, hr);
+      drawCenteredW3(renderY, (hariIdx == 5) ? "Jum'at" : "Zuhur");
+      break;
+    }
+    case 5:
+      drawCenteredW3(renderY, jZuhur);
+      break;
+    case 6:
+      drawCenteredW3(renderY, "Asar");
+      break;
+    case 7:
+      drawCenteredW3(renderY, jAsar);
+      break;
+    case 8:
+      drawCenteredW3(renderY, "Magrib");
+      break;
+    case 9:
+      drawCenteredW3(renderY, jMagrib);
+      break;
+    case 10:
+      drawCenteredW3(renderY, "ISYA");
+      break;
+    case 11:
+      drawCenteredW3(renderY, jIsya);
+      break;
+    default:
+      indexSlideInfo_W3 = 0;
+      break;
+  }
+}
+
+#endif
+
+bool periksaDanJalankanAlertSholat(int j, int m, int hr, int bl, int th) {
+  // 1. Jika fase running text alert aktif (2 menit)
+  if (statusAlertSholat == ALERT_RUNNING_TEKS) {
+    if (millis() - waktuMulaiAlertSholat >= 120000UL) { // 2 menit
+      statusAlertSholat = ALERT_CLEAR_LAYAR;
+      waktuMulaiAlertSholat = millis();
+      Disp.clear();
+      return true;
+    }
+
+    Disp.setFont(ElektronMart6x12);
+    Disp.drawText(posisi_X_alert, 0, pesanAlertSholat);
+    posisi_X_alert--;
+    int panjang_alert_px = pesanAlertSholat.length() * 6;
+    if (posisi_X_alert < -panjang_alert_px) {
+      posisi_X_alert = panjang_layar;
+    }
+    return true;
+  }
+  // 2. Jika fase clear layar aktif (5 menit)
+  else if (statusAlertSholat == ALERT_CLEAR_LAYAR) {
+    Disp.clear();
+    if (millis() - waktuMulaiAlertSholat >= 300000UL) { // 5 menit
+      statusAlertSholat = ALERT_INAKTIF;
+#if DISPLAYS_WIDE == 1
+      m4Slide = M4_SLIDE_CLOCK;
+      m4AnimState = M4_ANIM_IN;
+      m4JamX = -14;
+      m4MenitY = -9;
+      m4DetikY = 17;
+#elif DISPLAYS_WIDE == 2
+      statusWide2 = W2_SLIDE1_ACTIVE;
+      waktuMulaiSlide1_W2 = millis();
+      teksCycleCount_W2 = 0;
+      infoCycleCount_W2 = 0;
+      curClockX_W2 = 1;
+      curClockJamY_W2 = 0;
+      curClockMenitY_W2 = 8;
+      curTeksY_W2 = 7;
+#else
+      statusWide3 = W3_SLIDE1_ACTIVE;
+      waktuMulaiSlide1_W3 = millis();
+      teksCycleCount_W3 = 0;
+      infoCycleCount_W3 = 0;
+      curClockP1_X_W3 = 1;
+      curInfoP23_Y_W3 = 0;
+      curTeksP23_Y_W3 = 7;
+#endif
+      return false;
+    }
+    return true;
+  }
+
+  // 3. Evaluasi apakah Waktu saat ini persis sama dengan salah satu Waktu Sholat (Format 24 jam)
+  String waktuSekarang = duaDigit(j) + ":" + duaDigit(m);
+  String jSubuh, jZuhur, jAsar, jMagrib, jIsya;
+  hitung5WaktuSholat(th, bl, hr, timezone_offset, jSubuh, jZuhur, jAsar, jMagrib, jIsya);
+
+  String namaSholat = "";
+  if (waktuSekarang == jSubuh) {
+    namaSholat = "Subuh";
+  } else if (waktuSekarang == jZuhur) {
+    int hariIdx = hitungHariDalamSeminggu(th, bl, hr);
+    namaSholat = (hariIdx == 5) ? "Jum'at" : "Zuhur";
+  } else if (waktuSekarang == jAsar) {
+    namaSholat = "Asar";
+  } else if (waktuSekarang == jMagrib) {
+    namaSholat = "Magrib";
+  } else if (waktuSekarang == jIsya) {
+    namaSholat = "ISYA";
+  }
+
+  if (namaSholat != "") {
+    String alertKey = namaSholat + "_" + String(hr) + "_" + String(bl);
+    if (lastAlertSholatHari != alertKey) {
+      lastAlertSholatHari = alertKey;
+      pesanAlertSholat = "Sekarang Sudah Memasuki Waktu " + namaSholat + ".";
+      statusAlertSholat = ALERT_RUNNING_TEKS;
+      waktuMulaiAlertSholat = millis();
+      posisi_X_alert = panjang_layar;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void tampilkanMode4(int j, int m, int d, int hr, int bl, int th) {
+  // Jika sedang masa alert sholat (2 menit teks + 5 menit clear), tampilkan alert
+  if (periksaDanJalankanAlertSholat(j, m, hr, bl, th)) {
+    return;
+  }
+
+  String stringJam = duaDigit(j);
+  String stringMenit = duaDigit(m);
+  String stringDetik = duaDigit(d);
+
+#if DISPLAYS_WIDE == 1
+
+  if (m4Slide == M4_SLIDE_CLOCK) {
+    renderSlide1Clock(stringJam, stringMenit, stringDetik);
+  } else if (m4Slide == M4_SLIDE_DATE) {
+    renderSlide2Date(hr, bl, th);
+  } else if (m4Slide >= M4_SLIDE_SUBUH && m4Slide <= M4_SLIDE_ISYA) {
+    renderSlide3to7Sholat(hr, bl, th);
+  } else if (m4Slide == M4_SLIDE_TEKS) {
+    renderSlide8Teks();
+  }
+
+#elif DISPLAYS_WIDE == 2
+
+  if (waktuMulaiSlide1_W2 == 0) waktuMulaiSlide1_W2 = millis();
+
+  if (statusWide2 == W2_SLIDE1_ACTIVE) {
+    // 1. Tampilkan running text di baris bawah kanan
+    Disp.setFont(DejaVuSansBold9);
+    Disp.drawText(posisi_X, curTeksY_W2, teks_berjalan);
+    posisi_X--;
+    int p_teks = teks_berjalan.length() * 6;
+    if (posisi_X < 15 - p_teks) {
+      posisi_X = panjang_layar;
+      teksCycleCount_W2++;
+    }
+
+    // 2. Tampilkan InfoAtas di baris atas kanan (Hari, Tanggal, Sholat)
+    renderInfoAtas_W2(hr, bl, th, 0);
+
+    // 3. Mask area jam kiri dan gambar jam vertikal
+    Disp.drawText(0, 0, "   ");
+    Disp.drawText(0, 8, "   ");
+    Disp.setFont(DejaVuSansBold9);
+    Disp.drawText(curClockX_W2, curClockJamY_W2, stringJam);
+    Disp.drawText(curClockX_W2, curClockMenitY_W2, stringMenit);
+
+    // Cek syarat pindah slide: minimal 40 detik dan teks serta InfoAtas sudah tampil setidaknya 2x
+    if (millis() - waktuMulaiSlide1_W2 >= 40000UL && teksCycleCount_W2 >= 2 && infoCycleCount_W2 >= 2) {
+      statusWide2 = W2_SLIDE1_OUT;
+    }
+  }
+  else if (statusWide2 == W2_SLIDE1_OUT) {
+    curClockX_W2--;
+    curTeksY_W2++;
+    curY_Info_W2--;
+
+    Disp.setFont(DejaVuSansBold9);
+    Disp.drawText(posisi_X, curTeksY_W2, teks_berjalan);
+    renderInfoAtas_W2(hr, bl, th, 0);
+
+    Disp.drawText(0, 0, "   ");
+    Disp.drawText(0, 8, "   ");
+    Disp.setFont(DejaVuSansBold9);
+    Disp.drawText(curClockX_W2, curClockJamY_W2, stringJam);
+    Disp.drawText(curClockX_W2, curClockMenitY_W2, stringMenit);
+
+    if (curClockX_W2 < -16 && curTeksY_W2 > 16 && curY_Info_W2 < -9) {
+      statusWide2 = W2_SLIDE2_IN;
+      curClockFullY_W2 = -16;
+    }
+  }
+  else if (statusWide2 == W2_SLIDE2_IN) {
+    curClockFullY_W2++;
+    String jamFull = stringJam + ":" + stringMenit + ":" + stringDetik;
+    Disp.setFont(ElektronMart6x16);
+    int xClock = (panjang_layar - (jamFull.length() * 6)) / 2;
+    Disp.drawText(xClock, curClockFullY_W2, jamFull);
+
+    if (curClockFullY_W2 >= 0) {
+      curClockFullY_W2 = 0;
+      statusWide2 = W2_SLIDE2_HOLD;
+      waktuHoldSlide2_W2 = millis();
+    }
+  }
+  else if (statusWide2 == W2_SLIDE2_HOLD) {
+    String jamFull = stringJam + ":" + stringMenit + ":" + stringDetik;
+    Disp.setFont(ElektronMart6x16);
+    int xClock = (panjang_layar - (jamFull.length() * 6)) / 2;
+    Disp.drawText(xClock, 0, jamFull);
+
+    if (millis() - waktuHoldSlide2_W2 >= 15000UL) { // 15 detik
+      statusWide2 = W2_SLIDE2_OUT;
+    }
+  }
+  else if (statusWide2 == W2_SLIDE2_OUT) {
+    curClockFullY_W2++;
+    String jamFull = stringJam + ":" + stringMenit + ":" + stringDetik;
+    Disp.setFont(ElektronMart6x16);
+    int xClock = (panjang_layar - (jamFull.length() * 6)) / 2;
+    Disp.drawText(xClock, curClockFullY_W2, jamFull);
+
+    if (curClockFullY_W2 > 16) {
+      statusWide2 = W2_SLIDE1_ACTIVE;
+      waktuMulaiSlide1_W2 = millis();
+      teksCycleCount_W2 = 0;
+      infoCycleCount_W2 = 0;
+      posisi_X = panjang_layar;
+      curClockX_W2 = 1;
+      curClockJamY_W2 = 0;
+      curClockMenitY_W2 = 8;
+      curTeksY_W2 = 7;
+      curY_Info_W2 = -8;
+      statusAnimInfo_W2 = INFO_SLIDE_IN;
+    }
+  }
+
+#else // DISPLAYS_WIDE == 3
+
+  if (waktuMulaiSlide1_W3 == 0) waktuMulaiSlide1_W3 = millis();
+
+  if (statusWide3 == W3_SLIDE1_ACTIVE) {
+    // 1. Panel 2 & 3: Tampilkan running text di baris bawah (Y = 9)
+    Disp.setFont(DejaVuSansBold9);
+    Disp.drawText(posisi_X, curTeksP23_Y_W3, teks_berjalan);
+    posisi_X--;
+    int p_teks = teks_berjalan.length() * 5;
+    if (posisi_X < 32 - p_teks) {
+      posisi_X = panjang_layar;
+      teksCycleCount_W3++;
+    }
+
+    // 2. Panel 2 & 3: Tampilkan InfoAtas di baris atas (Y = 0)
+    renderInfoAtas_W3(hr, bl, th, 0);
+
+    // 3. Panel 1: Tampilkan Jam konfigurasi DISPLAYS_WIDE 1
+    Disp.setFont(ElektronMart6x16);
+    Disp.drawText(curClockP1_X_W3, 0, stringJam);
+    Disp.setFont(DejaVuSansBold9);
+    Disp.drawText(curClockP1_X_W3 + 17, -1, stringMenit);
+    Disp.drawText(curClockP1_X_W3 + 17, 8, stringDetik);
+
+    if (millis() - waktuMulaiSlide1_W3 >= 40000UL && teksCycleCount_W3 >= 2 && infoCycleCount_W3 >= 2) {
+      statusWide3 = W3_SLIDE1_OUT;
+    }
+  }
+  else if (statusWide3 == W3_SLIDE1_OUT) {
+    curClockP1_X_W3--;
+    curTeksP23_Y_W3++;
+    curY_Info_W3--;
+
+    Disp.setFont(DejaVuSansBold9);
+    Disp.drawText(posisi_X, curTeksP23_Y_W3, teks_berjalan);
+    renderInfoAtas_W3(hr, bl, th, 0);
+
+    Disp.setFont(ElektronMart6x16);
+    Disp.drawText(curClockP1_X_W3, 0, stringJam);
+    Disp.setFont(DejaVuSansBold9);
+    Disp.drawText(curClockP1_X_W3 + 17, -1, stringMenit);
+    Disp.drawText(curClockP1_X_W3 + 17, 8, stringDetik);
+
+    if (curClockP1_X_W3 < -32 && curTeksP23_Y_W3 > 16 && curY_Info_W3 < -9) {
+      statusWide3 = W3_SLIDE2_IN;
+      curClockFullY_W3 = -16;
+    }
+  }
+  else if (statusWide3 == W3_SLIDE2_IN) {
+    curClockFullY_W3++;
+    String jamFull = stringJam + ":" + stringMenit + ":" + stringDetik;
+    Disp.setFont(ElektronMart6x16);
+    int xClock = (panjang_layar - (jamFull.length() * 6)) / 2;
+    Disp.drawText(xClock, curClockFullY_W3, jamFull);
+
+    if (curClockFullY_W3 >= 0) {
+      curClockFullY_W3 = 0;
+      statusWide3 = W3_SLIDE2_HOLD;
+      waktuHoldSlide2_W3 = millis();
+    }
+  }
+  else if (statusWide3 == W3_SLIDE2_HOLD) {
+    String jamFull = stringJam + ":" + stringMenit + ":" + stringDetik;
+    Disp.setFont(ElektronMart6x16);
+    int xClock = (panjang_layar - (jamFull.length() * 6)) / 2;
+    Disp.drawText(xClock, 0, jamFull);
+
+    if (millis() - waktuHoldSlide2_W3 >= 15000UL) {
+      statusWide3 = W3_SLIDE2_OUT;
+    }
+  }
+  else if (statusWide3 == W3_SLIDE2_OUT) {
+    curClockFullY_W3++;
+    String jamFull = stringJam + ":" + stringMenit + ":" + stringDetik;
+    Disp.setFont(ElektronMart6x16);
+    int xClock = (panjang_layar - (jamFull.length() * 6)) / 2;
+    Disp.drawText(xClock, curClockFullY_W3, jamFull);
+
+    if (curClockFullY_W3 > 16) {
+      statusWide3 = W3_SLIDE1_ACTIVE;
+      waktuMulaiSlide1_W3 = millis();
+      teksCycleCount_W3 = 0;
+      infoCycleCount_W3 = 0;
+      posisi_X = panjang_layar;
+      curClockP1_X_W3 = 1;
+      curInfoP23_Y_W3 = 0;
+      curTeksP23_Y_W3 = =7;
+      curY_Info_W3 = -8;
+      statusAnimInfo_W3 = INFO3_SLIDE_IN;
+    }
+  }
+
+#endif
 }
  
 /**
@@ -435,6 +1111,8 @@ void ambilWaktuSekarang(int &jam, int &menit, int &detik,
   }
 }
 
+
+
 // ============================================================
 // SECTION 8: TICKER P10 REFRESH
 // Background timer yang me-refresh tampilan P10 setiap 2ms.
@@ -461,76 +1139,36 @@ void refreshP10() {
       ambilWaktuSekarang(j, m, d, hr, bl, th);
       String stringJam = duaDigit(j);
       String stringMenit = duaDigit(m);
-      String stringJam1 = duaDigit(j) + ":" + duaDigit(m);
-      static unsigned long waktuGantiMode = 0;
-      static bool tampilkanJam = true;
-
+      String stringDetik = duaDigit(d);
 
       // ---- Mode 1: Teks Berjalan ke Kiri ----
       if (mode_tampilan == 1) {
-        Disp.drawText(posisi_X, 4, teks_berjalan);
+        Disp.setFont(ElektronMart6x12);
+        Disp.drawText(posisi_X, 2, teks_berjalan);
         int panjang_teks = teks_berjalan.length() * 6;
         posisi_X--;
         if (posisi_X < -panjang_teks) posisi_X = panjang_layar;
       }
       // ---- Mode 2: Teks Diam di Tengah (Statis) ----
       else if (mode_tampilan == 2) {
+        Disp.setFont(ElektronMart6x12);
         int panjang_teks = teks_berjalan.length() * 6;
         int tengah_X = (panjang_layar - panjang_teks) / 2;
-        Disp.drawText(tengah_X, 4, teks_berjalan);
+        Disp.drawText(tengah_X, 2, teks_berjalan);
       }
       // ---- Mode 3: Teks Berjalan ke Kanan ----
       else if (mode_tampilan == 3) {
-        Disp.drawText(posisi_X, 4, teks_berjalan);
+        Disp.setFont(ElektronMart6x12);
+        Disp.drawText(posisi_X, 2, teks_berjalan);
         int panjang_teks = teks_berjalan.length() * 6;
         posisi_X++;
         if (posisi_X > panjang_layar) posisi_X = -panjang_teks;
       }
-      // ---- Mode 4: Jam Digital + Running Text Bergantian ----
-    else if (mode_tampilan == 4) {
-      static unsigned long waktuGantiMode = 0;
-      static bool tampilkanJam = true;
-      int panjang_teks_px = teks_berjalan.length() * 6; // 1. Hitung panjang teks dalam piksel (font Mono5x lebarnya 6px per karakter)
-      int total_jarak_px = panjang_layar + panjang_teks_px; // 2. Hitung total jarak gulir dari luar kanan sampai habis ke luar kiri
-
-      // 3. Hitung durasi berjalannya teks secara presisi (termasuk kecepatan_scroll)
-      // Ditambah 1000ms (1 detik) delay pause setelah teks selesai gulir penuh
-      // unsigned long durasi_teks_ms = (unsigned long)(total_jarak_px * kecepatan_scroll) + 200;
-
-      // // 4. Durasi tampilan jam (misal dibuat tetap 5 detik / 5000ms)
-      // unsigned long durasi_jam_ms = 5000; 
-
-      // // Tentukan batas waktu berdasarkan mode yang lagi aktif saat ini
-      // unsigned long batasWaktuSekarang = tampilkanJam ? durasi_jam_ms : durasi_teks_ms;
-
-      // // Evaluasi apakah sudah waktunya ganti dari Teks -> Jam atau Jam -> Teks
-      // if (millis() - waktuGantiMode > batasWaktuSekarang) {
-      //   waktuGantiMode = millis();
-      //   tampilkanJam   = !tampilkanJam;
-      //   posisi_X       = panjang_layar; // Reset posisi awal teks ke kanan
-      // }
-
-      if (tampilkanJam) {
-    // Tampilkan jam HH:MM di tengah panel
-    int lebarJam = stringJam.length() * 6;
-    int tengah_X = (panjang_layar - lebarJam) / 2;
-    // Disp.drawText(1, 0, stringJam); 
-    // Disp.drawText(posisi_X, 9, teks_berjalan);
-    // Disp.drawText(0, 9, " ");
-    // Disp.drawText(8, 9, " ");
-    // Disp.drawText(1, 9, stringMenit);
-    // renderInfoAtas(j, m, hr, bl, th); // ---- TEKS INFORMASI ATAS (X = 15, Y = 0): Hari -> Tanggal -> Sholat -> Jam Sholat ----
-
-    Disp.drawText(tengah_X, 0, stringJam1);             // Tampilkan jam HH:MM di tengah panel
-    Disp.drawText(posisi_X, 9, teks_berjalan);         // Tampilkan running text bergulir
-
-    // Logika pergerakan running text (tetap utuh)
-    int panjang_teks = teks_berjalan.length() * 6;
-    if (posisi_X < -panjang_teks) posisi_X = panjang_layar;
-    posisi_X--;
-}
-      }
-    } 
+      // ---- Mode 4: Slideshow Informasi Multi-Slide ----
+      else if (mode_tampilan == 4) {
+        tampilkanMode4(j, m, d, hr, bl, th);
+      } 
+    }
   }
 }
 // ============================================================
@@ -611,6 +1249,34 @@ void saatPesanMqttMasuk(char* topic, byte* payload, unsigned int length) {
     if (doc.containsKey("mode")) {
       mode_tampilan = doc["mode"].as<int>();
       posisi_X = panjang_layar; // Reset posisi saat ganti mode
+      if (mode_tampilan == 4) {
+#if DISPLAYS_WIDE == 1
+        m4Slide = M4_SLIDE_CLOCK;
+        m4AnimState = M4_ANIM_IN;
+        m4JamX = -14;
+        m4MenitY = -9;
+        m4DetikY = 17;
+        m4TeksCount = 0;
+#elif DISPLAYS_WIDE == 2
+        statusWide2 = W2_SLIDE1_ACTIVE;
+        waktuMulaiSlide1_W2 = millis();
+        teksCycleCount_W2 = 0;
+        infoCycleCount_W2 = 0;
+        curClockX_W2 = 1;
+        curClockJamY_W2 = 0;
+        curClockMenitY_W2 = 8;
+        curTeksY_W2 = 7;
+#else
+        statusWide3 = W3_SLIDE1_ACTIVE;
+        waktuMulaiSlide1_W3 = millis();
+        teksCycleCount_W3 = 0;
+        infoCycleCount_W3 = 0;
+        curClockP1_X_W3 = 1;
+        curInfoP23_Y_W3 = 0;
+        curTeksP23_Y_W3 = 7;
+#endif
+        statusAlertSholat = ALERT_INAKTIF;
+      }
     }
 
     // ---- 5. Update Zona Waktu ----
@@ -1008,7 +1674,7 @@ void setup() {
   // Konfigurasi dan mulai layar P10
   Disp.start();
   Disp.setBrightness(tingkat_kecerahan);
-  Disp.setFont(Mono5x7);
+  Disp.setFont(EMSans6x8);
   panjang_layar = Disp.width();
   posisi_X      = panjang_layar;
 
@@ -1028,7 +1694,7 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\nWiFi Terhubung! IP: " + WiFi.localIP().toString());
   } else {
-    Serial.println("\n[PERINGATAN] WiFi gagal. Periksa SSID/Password di baris 46-47.");
+    Serial.println("\n[PERINGATAN] WiFi gagal. Periksa SSID/Password di baris 39-40.");
   }
 
   // Inisialisasi MQTT client (buffer 4096 byte agar mampu menampung paket jadwal lengkap)
