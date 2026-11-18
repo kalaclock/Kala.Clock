@@ -1,80 +1,71 @@
--- ==========================================================
--- FILE DATABASE UNTUK PROJECT IOT P10 MQTT
--- ==========================================================
+-- ====================================================================
+-- DATABASE KALA.CLOCK — SISTEM PENGELOLAAN & AKSES KONSUMEN
+-- ====================================================================
 
-CREATE DATABASE IF NOT EXISTS `KALACLOCK_IOT_DATABASE`;
+CREATE DATABASE IF NOT EXISTS `KALACLOCK_IOT_DATABASE` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `KALACLOCK_IOT_DATABASE`;
 
--- `
--- Table structure for table `pengguna`
---
+-- 1. TABEL ADMIN (Untuk Pembuat / Pengelola Kala.Clock)
+CREATE TABLE IF NOT EXISTS `admin` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `username` VARCHAR(50) NOT NULL UNIQUE,
+  `password` VARCHAR(255) NOT NULL,
+  `nama_lengkap` VARCHAR(100) NOT NULL,
+  `email` VARCHAR(100) DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-DROP TABLE IF EXISTS `pengguna`;
+-- Akun Admin Default:
+-- Username : admin
+-- Password : admin123 (Ter-enkripsi dengan BCRYPT)
+INSERT INTO `admin` (`id`, `username`, `password`, `nama_lengkap`, `email`) 
+VALUES (1, 'admin', '$2y$10$wS2Wb5B2LzF8f7sWk3W7/eGk097l0pB0p3LdZ7L870m70Vv0W4Uae', 'Super Admin Kala.Clock', 'admin@kalaclock.local')
+ON DUPLICATE KEY UPDATE `username`=`username`;
+-- Catatan: Jika ingin mengganti password admin manual, gunakan fungsi password_hash('password_baru', PASSWORD_BCRYPT) di PHP.
 
-CREATE TABLE `pengguna` (
-  `id_pengguna` int NOT NULL AUTO_INCREMENT,
-  `nama_pengguna` varchar(300) NOT NULL,
-  `email_pengguna` varchar(200) NOT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id_pengguna`),
-  UNIQUE KEY `nama_pengguna` (`nama_pengguna`),
-  UNIQUE KEY `email_pengguna` (`email_pengguna`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 2. TABEL PENGGUNA & ID JAM (Didaftarkan oleh Admin)
+CREATE TABLE IF NOT EXISTS `users_jam` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `username` VARCHAR(100) NOT NULL UNIQUE,
+  `id_jam` VARCHAR(50) NOT NULL,
+  `nama_pemilik` VARCHAR(150) NOT NULL,
+  `nomor_kontak` VARCHAR(30) DEFAULT NULL,
+  `status` ENUM('aktif', 'nonaktif') DEFAULT 'aktif',
+  `catatan` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_id_jam` (`id_jam`),
+  INDEX `idx_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Dumping data for table `pengguna`
---
+-- Data Awal Pengguna Jam (Sesuai Demo Default)
+INSERT INTO `users_jam` (`username`, `id_jam`, `nama_pemilik`, `nomor_kontak`, `status`, `catatan`)
+VALUES 
+('Budi Santoso', 'KC00', 'Budi Santoso', '081234567890', 'aktif', 'Unit demo awal workshop'),
+('Kala Master', 'KC01', 'Kantor Kala.Clock', '081987654321', 'aktif', 'Unit display kantor')
+ON DUPLICATE KEY UPDATE `username`=`username`;
 
-LOCK TABLES `pengguna` WRITE;
-UNLOCK TABLES;
+-- 3. TABEL LOG AKSES WEBSITE (Monitoring Pengunjung/Konsumen yang Login)
+CREATE TABLE IF NOT EXISTS `log_akses` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `username` VARCHAR(100) NOT NULL,
+  `id_jam` VARCHAR(50) NOT NULL,
+  `ip_address` VARCHAR(50) DEFAULT NULL,
+  `user_agent` TEXT DEFAULT NULL,
+  `status_akses` ENUM('berhasil', 'gagal_tidak_terdaftar', 'gagal_dinonaktifkan') NOT NULL,
+  `keterangan` VARCHAR(255) DEFAULT NULL,
+  `waktu_akses` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_log_jam` (`id_jam`),
+  INDEX `idx_waktu` (`waktu_akses`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Table structure for table `jam`
---
-
-DROP TABLE IF EXISTS `jam`;
-CREATE TABLE `jam` (
-  `id_jam` int NOT NULL AUTO_INCREMENT,
-  `nama_jam` varchar(100) DEFAULT 'Kala.Clock Model 1',
-  `status` enum('online','offline') DEFAULT 'offline',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `id_pengguna` int NOT NULL,
-  PRIMARY KEY (`id_jam`),
-  KEY `id_pengguna` (`id_pengguna`),
-  CONSTRAINT `id_pengguna` FOREIGN KEY (`id_pengguna`) REFERENCES `pengguna` (`id_pengguna`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `jam`
---
-
-LOCK TABLES `jam` WRITE;
-UNLOCK TABLES;
-
---
--- Table structure for table `settings_p10`
---
-
-DROP TABLE IF EXISTS `settings_p10`;
-CREATE TABLE `settings_p10` (
-  `setting_id` int NOT NULL AUTO_INCREMENT,
-  `teks` varchar(255) NOT NULL DEFAULT 'Kala.Clock Siap Dijalankan',
-  `brightness` int NOT NULL DEFAULT 150,
-  `tanggal` date DEFAULT NULL,
-  `mode` int NOT NULL DEFAULT 1,
-  `speed` int NOT NULL DEFAULT 40,
-  `waktu` time DEFAULT NULL,
-  `id_jam` int NOT NULL,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`setting_id`),
-  UNIQUE KEY `id_jam` (`id_jam`),
-  CONSTRAINT `id_jam` FOREIGN KEY (`id_jam`) REFERENCES `jam` (`id_jam`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
---
--- Dumping data for table `settings_p10`
---
-
-LOCK TABLES `settings_p10` WRITE;
-UNLOCK TABLES;
+-- 4. TABEL PENYIMPANAN PENGATURAN JAM (Mendukung api_simpan.php)
+CREATE TABLE IF NOT EXISTS `pengaturan_jam` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `id_jam` VARCHAR(50) NOT NULL UNIQUE,
+  `teks` TEXT DEFAULT NULL,
+  `brightness` INT DEFAULT 80,
+  `speed` INT DEFAULT 40,
+  `mode` INT DEFAULT 4,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
