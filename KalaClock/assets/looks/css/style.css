@@ -1093,22 +1093,26 @@ h2 .brand-name,
    SECTION 9: TOAST NOTIFIKASI PERUBAHAN JAM (SESUAI NOTIF PERUBAHAN JAM.PNG)
    ========================================================================== */
 .toast-notif-wrap {
+   display: none;
   position: fixed;
   top: 24px;
   right: 24px;
   z-index: 10000;
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-16px);
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
+  transform: translateX(24px);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .toast-notif-wrap.active {
+  display: block;
   opacity: 1;
   visibility: visible;
-  transform: translateY(0);
   pointer-events: auto;
+  position: fixed;
+  transform: translateX(4px);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .toast-notif-card {
@@ -1156,8 +1160,13 @@ h2 .brand-name,
     gap: 20px;
    }
   
-  .controls-grid-row {
+  .controls-grid-column {
     grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .controls-grid-jadwal {
+    grid-template-rows: repeat(2, 1fr);
     gap: 20px;
   }
 
