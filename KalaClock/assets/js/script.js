@@ -29,23 +29,137 @@ let mode4ShowClock    = true;
 let mode4Timer        = null;
 
 // ==========================================
-// 2. AUTO-SAVE & LOAD FUNCTIONS
+// 2. AUTO-SAVE & LOAD FUNCTIONS (LOCALSTORAGE JADWAL & STATE)
 // ==========================================
+function saveJadwalToLocalStorage() {
+  let activeId = id_jam;
+  if (!activeId || activeId === '' || activeId === '{KC00}') {
+    activeId = localStorage.getItem('kalaclock_id_jam') || 'KC00';
+  }
+
+  const tidur = document.getElementById('valWaktuTidur')?.value || '22:00';
+  const bangun = document.getElementById('valWaktuBangun')?.value || '04:00';
+  const kecerahan = parseInt(document.getElementById('valKecerahanMalam')?.value, 10) || 10;
+  const autoSleep = document.getElementById('valAutoSleep')?.checked || false;
+
+  let jadwalList = [];
+  let jadwalObj = {};
+
+  for (let i = 1; i <= 10; i++) {
+    const item = document.querySelector(`.jadwal-item${i}`) || document.querySelectorAll('[class*="jadwal-item"]')[i - 1];
+    const itemData = {
+      nama: item?.querySelector('.input-nama-jadwal')?.value || `Jadwal ${i}`,
+      mulai: item?.querySelector('.input-mulai')?.value || '00:00',
+      selesai: item?.querySelector('.input-selesai')?.value || '00:00',
+      pesan: item?.querySelector('.input-pesan')?.value || ''
+    };
+    jadwalList.push(itemData);
+    jadwalObj[`jadwal${i}`] = itemData;
+  }
+
+  const dataJadwal = {
+    id_jam: activeId,
+    efisiensi: { tidur, bangun, kecerahan_malam: kecerahan, auto_sleep: autoSleep },
+    tidur,
+    bangun,
+    kecerahan_malam: kecerahan,
+    auto_sleep: autoSleep,
+    jadwal: jadwalList,
+    ...jadwalObj,
+    saved_at: Date.now()
+  };
+
+  try {
+    const jsonStr = JSON.stringify(dataJadwal);
+    // Simpan ke key spesifik ID jam
+    localStorage.setItem(`kalaclock_jadwal_${activeId}`, jsonStr);
+    // Simpan juga ke key umum cadangan agar jadwal tidak hilang saat ganti akun/login ulang
+    localStorage.setItem('kalaclock_jadwal_terakhir', jsonStr);
+  } catch (err) {
+    console.warn("Gagal menyimpan jadwal ke localStorage:", err);
+  }
+}
+
+function loadJadwalFromLocalStorage(idToLoad) {
+  let targetId = idToLoad || id_jam;
+  if (!targetId || targetId === '' || targetId === '{KC00}') {
+    targetId = localStorage.getItem('kalaclock_id_jam') || 'KC00';
+  }
+
+  // 1. Ambil dari key khusus ID Jam
+  let saved = localStorage.getItem(`kalaclock_jadwal_${targetId}`);
+  
+  // 2. Jika belum ada, ambil dari cadangan umum terakhir
+  if (!saved) {
+    saved = localStorage.getItem('kalaclock_jadwal_terakhir');
+  }
+
+  // 3. Fallback jika ada data dari format state lama
+  if (!saved) {
+    saved = localStorage.getItem(`kala_clock_state_${targetId}`) || localStorage.getItem('kala_clock_state_KC00');
+  }
+
+  if (!saved) return false;
+
+  try {
+    const data = JSON.parse(saved);
+    if (!data) return false;
+
+    // Muat Efisiensi
+    const eff = data.efisiensi || data;
+    if (eff.tidur && document.getElementById('valWaktuTidur')) {
+      document.getElementById('valWaktuTidur').value = eff.tidur;
+    }
+    if (eff.bangun && document.getElementById('valWaktuBangun')) {
+      document.getElementById('valWaktuBangun').value = eff.bangun;
+    }
+    if (eff.kecerahan_malam !== undefined && document.getElementById('valKecerahanMalam')) {
+      document.getElementById('valKecerahanMalam').value = eff.kecerahan_malam;
+    }
+    if (eff.auto_sleep !== undefined && document.getElementById('valAutoSleep')) {
+      document.getElementById('valAutoSleep').checked = Boolean(eff.auto_sleep);
+    }
+
+    // Muat 10 Slot Jadwal
+    for (let i = 1; i <= 10; i++) {
+      const itemEl = document.querySelector(`.jadwal-item${i}`) || document.querySelectorAll('[class*="jadwal-item"]')[i - 1];
+      if (!itemEl) continue;
+      const jData = data[`jadwal${i}`] || (Array.isArray(data.jadwal) ? data.jadwal[i - 1] : null);
+      if (jData) {
+        const inNama = itemEl.querySelector('.input-nama-jadwal');
+        const inMulai = itemEl.querySelector('.input-mulai');
+        const inSelesai = itemEl.querySelector('.input-selesai');
+        const inPesan = itemEl.querySelector('.input-pesan');
+        if (inNama && jData.nama) inNama.value = jData.nama;
+        if (inMulai && jData.mulai) inMulai.value = jData.mulai;
+        if (inSelesai && jData.selesai) inSelesai.value = jData.selesai;
+        if (inPesan) inPesan.value = (jData.pesan !== undefined) ? jData.pesan : '';
+      }
+    }
+    return true;
+  } catch (e) {
+    console.warn("Gagal parse jadwal dari localStorage:", e);
+    return false;
+  }
+}
+
 function saveCurrentInputs() {
   if (!id_jam) return;
   
   let jadwalList = [];
-  document.querySelectorAll('.jadwal-item').forEach(item => {
-    const pesan = item.querySelector('.input-pesan')?.value || '';
-    if (pesan.trim() !== '') {
-      jadwalList.push({
-        nama: item.querySelector('.input-nama-jadwal')?.value || '',
-        mulai: item.querySelector('.input-mulai')?.value || '',
-        selesai: item.querySelector('.input-selesai')?.value || '',
-        pesan: pesan
-      });
-    }
-  });
+  let jadwalObj = {};
+
+  for (let i = 1; i <= 10; i++) {
+    const item = document.querySelector(`.jadwal-item${i}`) || document.querySelectorAll('[class*="jadwal-item"]')[i - 1];
+    const itemData = {
+      nama: item?.querySelector('.input-nama-jadwal')?.value || `Jadwal ${i}`,
+      mulai: item?.querySelector('.input-mulai')?.value || '00:00',
+      selesai: item?.querySelector('.input-selesai')?.value || '00:00',
+      pesan: item?.querySelector('.input-pesan')?.value || ''
+    };
+    jadwalList.push(itemData);
+    jadwalObj[`jadwal${i}`] = itemData;
+  }
 
   const stateData = {
     teks: document.getElementById('inputTeks')?.value || '',
@@ -54,6 +168,7 @@ function saveCurrentInputs() {
     mode: currentMode,
     timezone: timezoneOffset,
     jadwal: jadwalList,
+    ...jadwalObj,
     tidur: document.getElementById('valWaktuTidur')?.value || '22:00',
     bangun: document.getElementById('valWaktuBangun')?.value || '04:00',
     kecerahan_malam: document.getElementById('valKecerahanMalam')?.value || 10,
@@ -61,6 +176,7 @@ function saveCurrentInputs() {
   };
 
   localStorage.setItem(`kala_clock_state_${id_jam}`, JSON.stringify(stateData));
+  saveJadwalToLocalStorage();
   saveInputsToDatabase();
 }
 
@@ -97,58 +213,51 @@ function saveInputsToDatabase() {
 }
 
 function loadSavedInputs(id_jam) {
-  const saved = localStorage.getItem(`kala_clock_state_${id_jam}`);
-  if (!saved) return;
+  const targetId = id_jam || window.id_jam || localStorage.getItem('kalaclock_id_jam') || 'KC00';
+  const saved = localStorage.getItem(`kala_clock_state_${targetId}`) || localStorage.getItem('kala_clock_state_KC00');
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
 
-  try {
-    const data = JSON.parse(saved);
-
-    if (data.teks !== undefined && document.getElementById('inputTeks')) {
-      document.getElementById('inputTeks').value = data.teks;
-      updateTickerText(data.teks);
-    }
-    if (data.brightness !== undefined) setBrightness(data.brightness, true);
-    if (data.speed !== undefined) {
-      setSpeed(data.speed);
-      if (document.getElementById('inputSpeed')) document.getElementById('inputSpeed').value = data.speed;
-    }
-    if (data.mode !== undefined) setDisplayMode(data.mode);
-    if (data.timezone !== undefined) setTimezonePreset(data.timezone);
-
-    if (data.tidur && document.getElementById('valWaktuTidur')) document.getElementById('valWaktuTidur').value = data.tidur;
-    if (data.bangun && document.getElementById('valWaktuBangun')) document.getElementById('valWaktuBangun').value = data.bangun;
-    if (data.kecerahan_malam && document.getElementById('valKecerahanMalam')) document.getElementById('valKecerahanMalam').value = data.kecerahan_malam;
-    if (data.auto_sleep !== undefined && document.getElementById('valAutoSleep')) document.getElementById('valAutoSleep').checked = data.auto_sleep;
-
-    if (data.jadwal && Array.isArray(data.jadwal) && data.jadwal.length > 0) {
-      const container = document.getElementById('wadahJadwal');
-      if (container) {
-        container.innerHTML = '';
-        jadwalCount = 0;
-        data.jadwal.forEach(j => {
-          jadwalCount++;
-          const newItem = document.createElement('div');
-          newItem.className = 'jadwal-item';
-          newItem.style.cssText = "background-color: var(--bg-subcard); padding: 12px; border-radius: var(--radius-btn); border: 1px solid var(--border-subtle); margin-bottom: 8px;";
-          newItem.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <input type="text" value="${j.nama}" class="input-nama-jadwal" style="background: transparent; border: none; color: var(--accent-tan); font-size: 11px; font-weight: 700; outline: none; width: 85px; font-family: 'Plus Jakarta Sans';">
-              <div style="display: flex; gap: 4px; align-items: center;">
-                <input type="time" class="control-input input-mulai" value="${j.mulai}" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
-                <span style="color: var(--text-muted); font-size: 10px;">-</span>
-                <input type="time" class="control-input input-selesai" value="${j.selesai}" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
-                <button onclick="this.parentElement.parentElement.parentElement.remove(); saveCurrentInputs();" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;" title="Hapus;">✕</button>
-              </div>
-            </div>
-            <input type="text" class="control-input input-pesan" placeholder="Ketik pesan jadwal baru..." value="${j.pesan}" style="width: 100%;">
-          `;
-          container.appendChild(newItem);
-        });
+      if (data.teks !== undefined && document.getElementById('inputTeks')) {
+        document.getElementById('inputTeks').value = data.teks;
+        updateTickerText(data.teks);
       }
+      if (data.brightness !== undefined) setBrightness(data.brightness, true);
+      if (data.speed !== undefined) {
+        setSpeed(data.speed);
+        if (document.getElementById('inputSpeed')) document.getElementById('inputSpeed').value = data.speed;
+      }
+      if (data.mode !== undefined) setDisplayMode(data.mode);
+      if (data.timezone !== undefined) setTimezonePreset(data.timezone);
+
+      if (data.tidur && document.getElementById('valWaktuTidur')) document.getElementById('valWaktuTidur').value = data.tidur;
+      if (data.bangun && document.getElementById('valWaktuBangun')) document.getElementById('valWaktuBangun').value = data.bangun;
+      if (data.kecerahan_malam && document.getElementById('valKecerahanMalam')) document.getElementById('valKecerahanMalam').value = data.kecerahan_malam;
+      if (data.auto_sleep !== undefined && document.getElementById('valAutoSleep')) document.getElementById('valAutoSleep').checked = data.auto_sleep;
+
+      for (let i = 1; i <= 10; i++) {
+        const itemEl = document.querySelector(`.jadwal-item${i}`) || document.querySelectorAll('[class*="jadwal-item"]')[i - 1];
+        if (!itemEl) continue;
+        const jData = data[`jadwal${i}`] || (Array.isArray(data.jadwal) ? data.jadwal[i - 1] : null);
+        if (jData) {
+          const inNama = itemEl.querySelector('.input-nama-jadwal');
+          const inMulai = itemEl.querySelector('.input-mulai');
+          const inSelesai = itemEl.querySelector('.input-selesai');
+          const inPesan = itemEl.querySelector('.input-pesan');
+          if (inNama && jData.nama) inNama.value = jData.nama;
+          if (inMulai && jData.mulai) inMulai.value = jData.mulai;
+          if (inSelesai && jData.selesai) inSelesai.value = jData.selesai;
+          if (inPesan) inPesan.value = (jData.pesan !== undefined) ? jData.pesan : '';
+        }
+      }
+    } catch (e) {
+      console.error("Gagal membaca saved state:", e);
     }
-  } catch (e) {
-    console.error("Gagal membaca saved state:", e);
   }
+
+  // Pastikan jadwal & efisiensi selalu dimuat secara khusus dari localStorage
+  loadJadwalFromLocalStorage(targetId);
 }
 
 // ==========================================
@@ -166,6 +275,7 @@ function setClockID(newID) {
   mqtt_topic_status = `KalaClock/${id_jam}/status`;
 
   loadSavedInputs(newID);
+  loadJadwalFromLocalStorage(newID);
 
   if (mqttClient && mqttClient.isConnected()) {
     mqttClient.subscribe(mqtt_topic);
@@ -175,6 +285,36 @@ function setClockID(newID) {
 // ==========================================================================
 // 4. JAM ANALOG & DIGITAL (SELALU SINKRON)
 // ==========================================================================
+function checkActiveJadwal(hours, minutes) {
+  const currentMinutes = hours * 60 + minutes;
+  const items = document.querySelectorAll('[class*="jadwal-item"]');
+  for (let item of items) {
+    const mulai = item.querySelector('.input-mulai')?.value;
+    const selesai = item.querySelector('.input-selesai')?.value;
+    const pesan = item.querySelector('.input-pesan')?.value;
+    if (!mulai || !selesai || !pesan || pesan.trim() === '') continue;
+
+    const [jm, mm] = mulai.split(':').map(Number);
+    const [js, ms] = selesai.split(':').map(Number);
+    if (isNaN(jm) || isNaN(mm) || isNaN(js) || isNaN(ms)) continue;
+
+    const menitMulai = jm * 60 + mm;
+    const menitSelesai = js * 60 + ms;
+    let isActive = false;
+    if (menitMulai <= menitSelesai) {
+      isActive = (currentMinutes >= menitMulai && currentMinutes < menitSelesai);
+    } else {
+      // Jadwal melintasi tengah malam (misal 22:00 - 05:00)
+      isActive = (currentMinutes >= menitMulai || currentMinutes < menitSelesai);
+    }
+
+    if (isActive) {
+      return pesan.trim();
+    }
+  }
+  return null;
+}
+
 function updateClocks() {
   const now = new Date();
   
@@ -216,6 +356,15 @@ function updateClocks() {
   
   const virtualDateEl = document.getElementById("virtualDate");
   if (virtualDateEl) virtualDateEl.textContent = dateString;
+
+  // Sinkronisasi pesan aktif pada layar virtual P10 dashboard
+  const activePesan = checkActiveJadwal(hours, minutes);
+  const defaultText = document.getElementById("inputTeks")?.value || "";
+  if (activePesan) {
+    updateTickerText(activePesan);
+  } else if (defaultText) {
+    updateTickerText(defaultText);
+  }
 }
 
 function generateClockTicks() {
@@ -381,12 +530,16 @@ function showLoginCountdownModal() {
       if (loginScreen)   loginScreen.classList.add("hidden");
       if (mainDashboard) mainDashboard.classList.remove("hidden");
 
+      // Pastikan jadwal & efisiensi langsung termuat saat dashboard ditampilkan
+      loadJadwalFromLocalStorage(id_jam);
+
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, 1000);
 }
 
 function logout() {
+  saveJadwalToLocalStorage();
   const loginScreen   = document.getElementById("loginScreen");
   const mainDashboard = document.getElementById("mainDashboard");
   if (mainDashboard) mainDashboard.classList.add("hidden");
@@ -482,7 +635,7 @@ function pingJam() {
       timestamp: Date.now()
     };
     const msg = new Paho.MQTT.Message(JSON.stringify(pingPayload));
-    msg.destinationName = mqtt_topic;
+    msg.destinationName = mqtt_topic_status;
     mqttClient.send(msg);
   }
 }
@@ -775,71 +928,62 @@ function showToastNotification(title, message) {
 
   setTimeout(() => {
     toastWrap.classList.remove("active");
-  }, 3800);
+  }, 3000);
 }
 
 // ==========================================
-// 11. MANAJEMEN JADWAL & EFISIENSI
+// 11. MANAJEMEN JADWAL & EFISIENSI (10 SLOT FIXED)
 // ==========================================
-let jadwalCount = 1;
+function kosongkanJadwal(btn) {
+  const item = btn ? btn.closest('[class*="jadwal-item"]') : null;
+  if (item) {
+    const inPesan = item.querySelector('.input-pesan');
+    if (inPesan) inPesan.value = '';
+    saveJadwalToLocalStorage();
+    saveCurrentInputs();
+    showToastNotification("Slot Dikosongkan", "Pesan jadwal slot ini telah dikosongkan.");
+  }
+}
 
 function tambahJadwal() {
-  jadwalCount++;
-  const container = document.getElementById('wadahJadwal');
-  if (!container) return;
-
-  const newItem = document.createElement('div');
-  newItem.className = '.jadwal-item';
-  newItem.style.cssText = "background-color: var(--bg-subcard); padding: 12px; border-radius: var(--radius-btn); border: 1px solid var(--border-subtle); margin-bottom: 8px;";
-
-  newItem.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-      <input type="text" value="Jadwal ${jadwalCount}" class="input-nama-jadwal" style="background: transparent; border: none; color: var(--accent-tan); font-size: 11px; font-weight: 700; outline: none; width: 85px; font-family: 'Plus Jakarta Sans';">
-      <div style="display: flex; gap: 4px; align-items: center;">
-        <input type="time" class="control-input input-mulai" value="12:00" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
-        <span style="color: var(--text-muted); font-size: 10px;">-</span>
-        <input type="time" class="control-input input-selesai" value="13:00" style="height: 24px; padding: 0 4px; font-size: 10px; width: 65px; text-align: center;">
-        <button onclick="this.parentElement.parentElement.parentElement.remove(); saveCurrentInputs();" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;" title="Hapus;">✕</button>
-      </div>
-    </div>
-    <input type="text" class="control-input input-pesan" placeholder="Ketik pesan jadwal baru..." value="" style="width: 100%;">
-  `;
-
-  container.appendChild(newItem);
-
-  newItem.querySelectorAll('input').forEach(input => {
-    input.addEventListener('input', saveCurrentInputs);
-    input.addEventListener('change', saveCurrentInputs);
-  });
-
-  setTimeout(() => { container.scrollTop = container.scrollHeight; }, 100);
+  // Mode 10 Slot Fixed: Fokuskan ke input pesan slot kosong pertama
+  const emptyInput = Array.from(document.querySelectorAll('.input-pesan')).find(inp => !inp.value.trim());
+  if (emptyInput) {
+    emptyInput.focus();
+    emptyInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    showToastNotification("Info Slot Jadwal", "Seluruh 10 slot jadwal sudah terisi.");
+  }
 }
 
 function prosesSimpanJadwal() {
   const tidur = document.getElementById('valWaktuTidur')?.value || '22:00';
   const bangun = document.getElementById('valWaktuBangun')?.value || '04:00';
-  const kecerahan = document.getElementById('valKecerahanMalam')?.value || 10;
+  const kecerahan = parseInt(document.getElementById('valKecerahanMalam')?.value, 10) || 10;
   const autoSleep = document.getElementById('valAutoSleep')?.checked || false;
 
+  // Kumpulkan tepat 10 slot jadwal secara terpisah (jadwal1 s/d jadwal10)
   let jadwalList = [];
-  let jadwalItems = document.querySelectorAll('.jadwal-item');
-  jadwalItems.forEach(item => {
-    let pesan = item.querySelector('.input-pesan')?.value || '';
-    if (pesan.trim() !== '') {
-      jadwalList.push({
-        nama: item.querySelector('.input-nama-jadwal')?.value || '',
-        mulai: item.querySelector('.input-mulai')?.value || '',
-        selesai: item.querySelector('.input-selesai')?.value || '',
-        pesan: pesan
-      });
-    }
-  });
+  let jadwalObj = {};
 
+  for (let i = 1; i <= 10; i++) {
+    const item = document.querySelector(`.jadwal-item${i}`) || document.querySelectorAll('[class*="jadwal-item"]')[i - 1];
+    const itemData = {
+      nama: item?.querySelector('.input-nama-jadwal')?.value || `Jadwal ${i}`,
+      mulai: item?.querySelector('.input-mulai')?.value || '00:00',
+      selesai: item?.querySelector('.input-selesai')?.value || '00:00',
+      pesan: item?.querySelector('.input-pesan')?.value || ''
+    };
+    jadwalList.push(itemData);
+    jadwalObj[`jadwal${i}`] = itemData;
+  }
+
+  // Kirim data efisien tanpa duplikasi array agar ukuran paket ringan dan cepat sampai di jam
   const dataKirim = {
     action: "update_jadwal",
     id_jam: id_jam,
     efisiensi: { tidur, bangun, kecerahan_malam: kecerahan, auto_sleep: autoSleep },
-    jadwal: jadwalList
+    ...jadwalObj
   };
 
   const payloadString = JSON.stringify(dataKirim);
@@ -849,12 +993,22 @@ function prosesSimpanJadwal() {
     message.destinationName = mqtt_topic;
     message.retained = false; 
     mqttClient.send(message);
+
+    showToastNotification(
+      "10 Jadwal & Efisiensi Tersimpan!",
+      "Seluruh 10 pengaturan jadwal berhasil dikirim ke perangkat jam IoT."
+    );
+  } else {
+    if (typeof connectMQTTClient === "function") {
+      connectMQTTClient();
+    }
+    showToastNotification(
+      "Koneksi Jam Terputus!",
+      "Gagal mengirim jadwal: Jam/Broker MQTT sedang offline. Menyambungkan kembali..."
+    );
   }
 
-  showToastNotification(
-    "Jadwal & Efisiensi Tersimpan!",
-    "Pengaturan jadwal baru telah berhasil dikirim ke perangkat jam IoT."
-  );
+  saveJadwalToLocalStorage();
   saveCurrentInputs();
 }
 
@@ -899,6 +1053,10 @@ document.addEventListener("DOMContentLoaded", function () {
   setSpeed(40);
   setDisplayMode(4);
   setTimezonePreset(8);
+  if (id_jam) {
+    loadSavedInputs(id_jam);
+    loadJadwalFromLocalStorage(id_jam);
+  }
   
   document.querySelectorAll(".btn-utc").forEach(btn => {
     btn.addEventListener("click", function () {
@@ -910,12 +1068,30 @@ document.addEventListener("DOMContentLoaded", function () {
   cekStatusDatabase();
   setInterval(cekStatusDatabase, 12000);
 
-  const inputsToTrack = ['inputTeks', 'inputBrightness', 'inputSpeed'];
+  const inputsToTrack = ['inputTeks', 'inputBrightness', 'inputSpeed', 'valWaktuTidur', 'valWaktuBangun', 'valAutoSleep'];
   inputsToTrack.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      el.addEventListener('input', saveCurrentInputs);
-      el.addEventListener('change', saveCurrentInputs);
+      el.addEventListener('input', () => {
+        if (id.startsWith('val')) saveJadwalToLocalStorage();
+        saveCurrentInputs();
+      });
+      el.addEventListener('change', () => {
+        if (id.startsWith('val')) saveJadwalToLocalStorage();
+        saveCurrentInputs();
+      });
     }
   });
+
+  const wadahJadwal = document.getElementById('wadahJadwal');
+  if (wadahJadwal) {
+    wadahJadwal.addEventListener('input', function() {
+      saveJadwalToLocalStorage();
+      saveCurrentInputs();
+    });
+    wadahJadwal.addEventListener('change', function() {
+      saveJadwalToLocalStorage();
+      saveCurrentInputs();
+    });
+  }
 });
