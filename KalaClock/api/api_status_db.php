@@ -1,16 +1,15 @@
 <?php
-// ====================================================================
-// MATERI GURU WEB & DATABASE (File: api_status_db.php)
-// File ini khusus dibuat untuk mengecek status koneksi dari Web Hosting
-// ====================================================================
-header('Content-Type: application/json');
+// ==========================================================================
+// KALA.CLOCK — API STATUS KONEKSI DATABASE
+// Dipanggil secara berkala oleh script.js untuk indikator dotDatabase
+// ==========================================================================
 
-// Kita langsung panggil file koneksi.php agar tidak perlu setting password 2 kali.
-// Jika koneksi.php berhasil, maka kode di bawahnya akan dieksekusi.
-// Jika gagal, file koneksi.php akan mengeluarkan 'die()' dan membatalkan sisa kode ini.
+require_once __DIR__ . '/koneksi.php';
 
-require 'koneksi.php';
-
-// Jika sampai di baris ini, berarti koneksi di koneksi.php SUKSES.
-echo json_encode(["status" => "online"]);
-?>
+// Jika file koneksi.php berhasil dipanggil tanpa error PDOException, database berstatus online
+echo json_encode([
+    'status'    => 'online',
+    'success'   => true,
+    'message'   => 'Database MySQL Kala.Clock aktif dan terhubung dengan baik.',
+    'server_time' => date('Y-m-d H:i:s')
+]);
