@@ -1,0 +1,667 @@
+/* ==========================================================================
+   KALA.CLOCK — STYLESHEET KATALOG PRODUK RESMI
+   Berdasarkan Variable & Desain Resmi style.css Kala.Clock
+   ========================================================================== */
+
+:root {
+  /* Warna Khusus Kartu Katalog (20% Brighter than --bg-page #ece7de) */
+  --bg-card-katalog: color-mix(in srgb, var(--bg-page) 80%, #ffffff 20%);
+  --bg-card-katalog-fallback: #faf8f3;
+  --bg-card-highlight: #ffffff;
+  
+  --border-katalog: rgba(50, 33, 22, 0.12);
+  --border-katalog-hover: rgba(205, 160, 119, 0.6);
+  --text-katalog-title: #221c16;
+  --text-katalog-body: #4a443c;
+  --text-katalog-muted: #7d756b;
+  
+  --shadow-katalog-card: 0 10px 28px rgba(50, 33, 22, 0.08);
+  --shadow-katalog-hover: 0 18px 40px rgba(50, 33, 22, 0.15);
+}
+
+/* ==========================================================================
+   PAGE WRAPPER & HEADER
+   ========================================================================== */
+.katalog-page-wrapper {
+  width: 100%;
+  max-width: 1240px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 24px 20px 60px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* TOP NAVBAR */
+.katalog-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background-color: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(50, 33, 22, 0.08);
+  border-radius: var(--radius-card);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.katalog-brand-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.katalog-brand-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.katalog-brand-title {
+  font-family: 'Baumans', cursive, sans-serif;
+  font-size: 22px;
+  color: var(--text-dark-btn);
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+.katalog-brand-badge {
+  background: var(--bg-card);
+  color: var(--accent-tan);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* TOMBOL KEMBALI KE DASHBOARD */
+.btn-back-dashboard {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  background-color: color-mix(in srgb, var(--text-dark-btn) 85%, #ffffff 15%);
+  color: var(--accent-tan);
+  border: 1px solid rgba(205, 160, 119, 0.35);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(50, 33, 22, 0.2);
+  transition: all 0.25s ease;
+}
+
+.btn-back-dashboard svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--accent-tan);
+  stroke-width: 2.2;
+  transition: transform 0.2s ease;
+}
+
+.btn-back-dashboard:hover {
+  background-color: color-mix(in srgb, var(--text-dark-btn) 75%, #ffffff 25%);
+  border-color: var(--accent-tan);
+  box-shadow: 0 4px 14px rgba(50, 33, 22, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-back-dashboard:hover svg {
+  transform: translateX(-3px);
+}
+
+/* HERO SECTION */
+.katalog-hero {
+  text-align: center;
+  padding: 10px 10px 6px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.katalog-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background-color: rgba(205, 160, 119, 0.18);
+  border: 1px solid rgba(205, 160, 119, 0.35);
+  color: var(--text-dark-btn);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  margin-bottom: 2px;
+}
+
+.katalog-hero-badge svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--accent-tan-hover);
+}
+
+.katalog-hero h1 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-dark-btn);
+  line-height: 1.3;
+}
+
+.katalog-hero p {
+  max-width: 680px;
+  font-size: 13px;
+  color: var(--text-katalog-muted);
+  line-height: 1.6;
+}
+
+/* ==========================================================================
+   CARDS CONTAINER (DESKTOP GRID & CAROUSEL VIEWPORT)
+   ========================================================================== */
+.katalog-showcase-wrapper {
+  width: 100%;
+  position: relative;
+}
+
+.katalog-cards-container {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  align-items: stretch;
+}
+
+/* ==========================================================================
+   INDIVIDUAL PRODUCT CARD
+   Background 20% brighter than --bg-page (#ece7de)
+   ========================================================================== */
+.katalog-card {
+  background-color: var(--bg-card-katalog-fallback);
+  background-color: var(--bg-card-katalog);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border-katalog);
+  box-shadow: var(--shadow-katalog-card);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.katalog-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--border-katalog-hover);
+  box-shadow: var(--shadow-katalog-hover);
+}
+
+/* CARD ACCENT STRIP / BADGE */
+.katalog-card-badge-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.katalog-badge-pill {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background-color: rgba(50, 33, 22, 0.08);
+  color: var(--text-dark-btn);
+  border: 1px solid rgba(50, 33, 22, 0.12);
+}
+
+.katalog-badge-pill.popular {
+  background-color: var(--accent-tan);
+  color: var(--text-dark-btn);
+  border-color: var(--accent-tan-hover);
+}
+
+.katalog-panel-chip {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-tan-hover);
+}
+
+/* PREVIEW IMAGE CONTAINER */
+.katalog-image-container {
+  width: 100%;
+  height: 180px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.8), rgba(240, 235, 225, 0.6));
+  border-radius: var(--radius-subcard);
+  border: 1px solid rgba(50, 33, 22, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  position: relative;
+}
+
+.katalog-product-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.12));
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.katalog-card:hover .katalog-product-img {
+  transform: scale(1.06);
+}
+
+/* CARD HEADER: TITLE & PRICE */
+.katalog-card-meta {
+  margin-bottom: 16px;
+  border-bottom: 1px dashed rgba(50, 33, 22, 0.15);
+  padding-bottom: 14px;
+}
+
+.katalog-card-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-katalog-title);
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.katalog-card-subtitle {
+  font-size: 11px;
+  color: var(--text-katalog-muted);
+  margin-bottom: 10px;
+}
+
+.katalog-price-tag {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.katalog-price-amount {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-dark-btn);
+  letter-spacing: -0.3px;
+}
+
+.katalog-price-tax {
+  font-size: 10px;
+  color: var(--text-katalog-muted);
+}
+
+/* DESCRIPTION & FITUR-FITUR */
+.katalog-desc-intro {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-katalog-body);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.katalog-feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-grow: 1;
+}
+
+.katalog-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-katalog-body);
+  line-height: 1.45;
+}
+
+.katalog-feature-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: rgba(205, 160, 119, 0.28);
+  color: var(--text-dark-btn);
+  font-weight: 700;
+  font-size: 9.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.katalog-feature-item strong {
+  color: var(--text-dark-btn);
+  font-weight: 600;
+}
+
+/* CARD ACTION (BUTTON BELI SEKARANG) */
+.katalog-card-footer {
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+.btn-beli-sekarang {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 18px;
+  /* style.css button color: --accent-tan */
+  background-color: var(--accent-tan);
+  /* teks: --text-dark-btn */
+  color: var(--text-dark-btn);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: var(--radius-btn);
+  border: 1px solid var(--accent-tan-hover);
+  box-shadow: 0 4px 14px rgba(205, 160, 119, 0.35);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.btn-beli-sekarang svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--text-dark-btn);
+  stroke-width: 2.2;
+  transition: transform 0.2s ease;
+}
+
+.btn-beli-sekarang:hover {
+  background-color: var(--accent-tan-hover);
+  box-shadow: 0 6px 18px rgba(184, 139, 100, 0.45);
+  transform: translateY(-2px);
+}
+
+.btn-beli-sekarang:hover svg {
+  transform: scale(1.15) rotate(-5deg);
+}
+
+.btn-beli-sekarang:active {
+  transform: scale(0.98);
+}
+
+.teks{
+  color: var(--text-katalog-title);
+}
+/* ==========================================================================
+   CAROUSEL CONTROLS (ARROWS & DOTS - TERLIHAT DI MOBILE)
+   ========================================================================== */
+.carousel-nav-btn {
+  display: none; /* Desktop default */
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: color-mix(in srgb, var(--text-dark-btn) 85%, #ffffff 15%);
+  color: var(--accent-tan);
+  border: 1px solid rgba(205, 160, 119, 0.4);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s ease;
+}
+
+.carousel-nav-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--accent-tan);
+  stroke-width: 2.4;
+}
+
+.carousel-nav-btn:hover {
+  background-color: color-mix(in srgb, var(--text-dark-btn) 75%, #ffffff 25%);
+  border-color: var(--accent-tan);
+  transform: translateY(-50%) scale(1.08);
+}
+
+.carousel-nav-btn.prev {
+  left: 6px;
+}
+
+.carousel-nav-btn.next {
+  right: 6px;
+}
+
+.carousel-dots {
+  display: none; /* Desktop default */
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.carousel-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: rgba(50, 33, 22, 0.25);
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0;
+}
+
+.carousel-dot.active {
+  width: 28px;
+  border-radius: var(--radius-pill);
+  background-color: var(--accent-tan);
+}
+
+/* MOBILE SWIPE HINT */
+.carousel-swipe-hint {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-katalog-muted);
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 6px;
+}
+
+.carousel-swipe-hint svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--accent-tan-hover);
+}
+
+/* ==========================================================================
+   COMPARISON QUICK TABLE SECTION
+   ========================================================================== */
+.katalog-compare-card {
+  background-color: var(--bg-card-katalog-fallback);
+  background-color: var(--bg-card-katalog);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border-katalog);
+  box-shadow: var(--shadow-katalog-card);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.katalog-compare-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(50, 33, 22, 0.1);
+  padding-bottom: 12px;
+}
+
+.katalog-compare-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-dark-btn);
+}
+
+.katalog-table-wrapper {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.katalog-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.katalog-compare-table th,
+.katalog-compare-table td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(50, 33, 22, 0.08);
+  color: var(--text-katalog-title);
+}
+
+.katalog-compare-table th {
+  background-color: rgba(50, 33, 22, 0.05);
+  color: var(--text-dark-btn);
+  font-weight: 700;
+}
+
+.katalog-compare-table tr:hover td {
+  background-color: rgba(205, 160, 119, 0.08);
+}
+
+.katalog-compare-table .highlight-price {
+  font-weight: 700;
+  color: var(--text-dark-btn);
+}
+
+/* FOOTER */
+.katalog-footer {
+  text-align: center;
+  padding-top: 16px;
+  border-top: 1px solid rgba(50, 33, 22, 0.1);
+  color: var(--text-katalog-muted);
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ==========================================================================
+   RESPONSIVITAS MOBILE (CAROUSEL MODE)
+   ========================================================================== */
+@media (max-width: 960px) {
+  .katalog-cards-container {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+@media (max-width: 860px) {
+  .katalog-page-wrapper {
+    padding: 16px 14px 40px 14px;
+    gap: 20px;
+  }
+
+  .katalog-hero h1 {
+    font-size: 22px;
+  }
+
+  .katalog-hero p {
+    font-size: 12px;
+  }
+
+  /* AKTIFKAN CAROUSEL SWIPE DI MOBILE */
+  .katalog-showcase-wrapper {
+    overflow: hidden;
+    padding: 8px 0;
+  }
+
+  .katalog-cards-container {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 16px;
+    transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+    will-change: transform;
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .katalog-card {
+    flex: 0 0 calc(100% - 10px);
+    width: calc(100% - 10px);
+    margin: 0 auto;
+    padding: 20px 18px;
+    box-shadow: 0 8px 24px rgba(50, 33, 22, 0.1);
+  }
+
+  .katalog-image-container {
+    height: 160px;
+  }
+
+  /* TAMPILKAN NAVIGASI CAROUSEL */
+  .carousel-nav-btn {
+    display: flex;
+  }
+
+  .carousel-dots {
+    display: flex;
+  }
+
+  .carousel-swipe-hint {
+    display: flex;
+  }
+
+  .katalog-topbar {
+    padding: 8px 12px;
+  }
+
+  .katalog-brand-title {
+    font-size: 18px;
+  }
+
+  .katalog-brand-badge {
+    display: none;
+  }
+}
+
+@media (max-width: 440px) {
+  .katalog-card {
+    flex: 0 0 100%;
+    width: 100%;
+    padding: 16px;
+  }
+
+  .carousel-nav-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .katalog-card-title {
+    font-size: 16px;
+  }
+
+  .katalog-price-amount {
+    font-size: 20px;
+  }
+}
