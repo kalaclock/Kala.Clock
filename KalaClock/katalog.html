@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>Katalog Produk — Kala.Clock IoT</title>
+  
+  <!-- FAVICON RESMI KALA.CLOCK -->
+  <link rel="icon" type="image/png" href="assets/looks/img/icons/Favicon.png" />
+  
+  <!-- IMPORT GOOGLE FONTS (Baumans & Plus Jakarta Sans) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Baumans&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  
+  <!-- STYLESHEET UTAMA & KATALOG -->
+  <link rel="stylesheet" href="assets/css/style.css?v=2.0.5" />
+  <link rel="stylesheet" href="assets/css/katalog.css?v=1.0.0" />
+</head>
+<body>
+
+  <div class="katalog-page-wrapper">
+    
+    <!-- TOPBAR NAVBAR -->
+    <header class="katalog-topbar">
+      <div class="katalog-brand-group">
+        <img src="assets/looks/img/icons/Icon.png" alt="Logo Kala.Clock" class="katalog-brand-logo" onerror="this.style.display='none'" />
+        <span class="katalog-brand-title">Kala.Clock</span>
+        <span class="katalog-brand-badge">Katalog Resmi</span>
+      </div>
+
+      <a href="index.html" class="btn-back-dashboard" title="Kembali ke Dashboard Utama">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+        <span>Dashboard</span>
+      </a>
+    </header>
+
+    <!-- HERO HEADER -->
+    <section class="katalog-hero">
+      <div class="katalog-hero-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <span class="teks">Inovasi IoT &amp; Running Text Cerdas</span>
+      </div>
+      <h1>Pilihan Model Panel Kala.Clock</h1>
+      <p class="teks">
+        Jam Digital IoT dengan pengaturan real-time via smartphone dan internet. Dilengkapi jadwal siaran 10 slot, pengingat sholat otomatis, serta hemat daya cerdas.
+      </p>
+    </section>
+
+    <!-- CARDS SHOWCASE (GRID DESKTOP & CAROUSEL MOBILE) -->
+    <section class="katalog-showcase-wrapper" aria-label="Daftar Produk Kala.Clock">
+      
+      <!-- NAVIGASI ARROW CAROUSEL UNTUK MOBILE -->
+      <button type="button" class="carousel-nav-btn prev" id="carouselPrevBtn" aria-label="Lihat Model Sebelumnya">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+
+      <button type="button" class="carousel-nav-btn next" id="carouselNextBtn" aria-label="Lihat Model Selanjutnya">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+
+      <!-- TRACK CONTAINER KARTU -->
+      <div class="katalog-cards-container" id="katalogCardsContainer">
+        
+        <!-- ==================== KARTU 1: SINGLE PANEL (1 PANEL) ==================== -->
+        <article class="katalog-card" data-panel="1">
+          <div class="katalog-card-badge-row">
+            <span class="katalog-badge-pill">Compact &amp; Minimalis</span>
+            <span class="katalog-panel-chip">1 Panel P10</span>
+          </div>
+
+          <!-- Preview Image di Atas Deskripsi -->
+          <div class="katalog-image-container">
+            <img src="assets/looks/img/Preview Produk/Single Display.png" alt="Kala.Clock Model 1 Panel (Single Display)" class="katalog-product-img" loading="lazy" />
+          </div>
+
+          <div class="katalog-card-meta">
+            <h2 class="katalog-card-title">Single Panel (1 Panel)</h2>
+            <p class="katalog-card-subtitle">Kala.Clock Model 1 Panel</p>
+            <div class="katalog-price-tag">
+              <span class="katalog-price-amount">Rp 485.000,00</span>
+              <span class="katalog-price-tax">/ unit</span>
+            </div>
+          </div>
+
+          <p class="katalog-desc-intro">
+            Jam Digital IoT dengan pengaturan otomatis lewat hp dan internet dengan berbagai fitur:
+          </p>
+
+          <ol class="katalog-feature-list">
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">1</span>
+              <span class="teks"><strong>4 Mode Jam</strong> (Kiri, Kanan, Statis, dan Jam + Teks Berjalan).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">2</span>
+              <span class="teks"><strong>Siaran terjadwal</strong> dengan 10 slot jadwal beserta waktu mulai dan berakhirnya jadwal.</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">3</span>
+              <span class="teks"><strong>Mode Hemat daya</strong> (Jam akan diredupkan dari waktu awal sampai diterangkan kembali pada waktu selesai yang ditentukan).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">4</span>
+              <span class="teks"><strong>Night Mode</strong> (Jam akan dimatikan sementara waktu dari waktu awal sampai dihidupkan kembali pada waktu selesai yang ditentukan).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">5</span>
+              <span class="teks"><strong>Kecerahan fleksibel</strong> bisa diatur dari gelap (0) sampai terang (255).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">6</span>
+              <span class="teks"><strong>Kecepatan scroll teks</strong> bisa diatur dari cepat (10ms) sampai super lambat (100ms).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">7</span>
+              <span class="teks"><strong>Kalibrasi Waktu presisi</strong> beserta pemilihan zona waktu dari WIB, WITA, dan WIT.</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">8</span>
+              <spa class="teks"><strong>Waktu sholat &amp; pengingat sholat</strong> secara offline yang akan otomatis mengatur kembali setiap hari.</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">9</span>
+              <span class="teks"><strong>3 Pilihan material casing</strong> jam (Filamen, Kayu, dan Aluminium/Besi).</span>
+            </li>
+          </ol>
+
+          <div class="katalog-card-footer">
+            <a href="https://digitalisasi.smkn2-bjm.sch.id/marketplace/produk/smart-teks-berjalan-iot-obbdmf" target="_blank" rel="noopener noreferrer" class="btn-beli-sekarang" title="Beli Single Panel Sekarang di Marketplace Resmi">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="9" cy="21" r="1"></circle>
+                <circle cx="20" cy="21" r="1"></circle>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+              </svg>
+              <span>Beli Sekarang</span>
+            </a>
+          </div>
+        </article>
+
+        <!-- ==================== KARTU 2: DOUBLE PANEL (2 PANEL) ==================== -->
+        <article class="katalog-card" data-panel="2">
+          <div class="katalog-card-badge-row">
+            <span class="katalog-badge-pill popular">Opsi Paling Pas</span>
+            <span class="katalog-panel-chip">2 Panel P10</span>
+          </div>
+
+          <!-- Preview Image di Atas Deskripsi -->
+          <div class="katalog-image-container">
+            <img src="assets/looks/img/Preview Produk/Double Display.png" alt="Kala.Clock Model 2 Panel (Double Display)" class="katalog-product-img" loading="lazy" />
+          </div>
+
+          <div class="katalog-card-meta">
+            <h2 class="katalog-card-title">Double Panel (2 Panel)</h2>
+            <p class="katalog-card-subtitle">Kala.Clock Model 2 Panel</p>
+            <div class="katalog-price-tag">
+              <span class="katalog-price-amount">Rp 735.000,00</span>
+              <span class="katalog-price-tax">/ unit</span>
+            </div>
+          </div>
+
+          <p class="katalog-desc-intro">
+            Jam Digital IoT dengan pengaturan otomatis lewat hp dan internet dengan berbagai fitur:
+          </p>
+
+                    <ol class="katalog-feature-list">
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">1</span>
+              <span class="teks"><strong>4 Mode Jam</strong> (Kiri, Kanan, Statis, dan Jam + Teks Berjalan).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">2</span>
+              <span class="teks"><strong>Siaran terjadwal</strong> dengan 10 slot jadwal beserta waktu mulai dan berakhirnya jadwal.</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">3</span>
+              <span class="teks"><strong>Mode Hemat daya</strong> (Jam akan diredupkan dari waktu awal sampai diterangkan kembali pada waktu selesai yang ditentukan).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">4</span>
+              <span class="teks"><strong>Night Mode</strong> (Jam akan dimatikan sementara waktu dari waktu awal sampai dihidupkan kembali pada waktu selesai yang ditentukan).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">5</span>
+              <span class="teks"><strong>Kecerahan fleksibel</strong> bisa diatur dari gelap (0) sampai terang (255).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">6</span>
+              <span class="teks"><strong>Kecepatan scroll teks</strong> bisa diatur dari cepat (10ms) sampai super lambat (100ms).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">7</span>
+              <span class="teks"><strong>Kalibrasi Waktu presisi</strong> beserta pemilihan zona waktu dari WIB, WITA, dan WIT.</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">8</span>
+              <spa class="teks"><strong>Waktu sholat &amp; pengingat sholat</strong> secara offline yang akan otomatis mengatur kembali setiap hari.</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">9</span>
+              <span class="teks"><strong>3 Pilihan material casing</strong> jam (Filamen, Kayu, dan Aluminium/Besi).</span>
+            </li>
+          </ol>
+
+          <div class="katalog-card-footer">
+            <a href="https://digitalisasi.smkn2-bjm.sch.id/marketplace/produk/smart-teks-berjalan-iot-obbdmf" target="_blank" rel="noopener noreferrer" class="btn-beli-sekarang" title="Beli Double Panel Sekarang di Marketplace Resmi">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="9" cy="21" r="1"></circle>
+                <circle cx="20" cy="21" r="1"></circle>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+              </svg>
+              <span>Beli Sekarang</span>
+            </a>
+          </div>
+        </article>
+
+        <!-- ==================== KARTU 3: TRIPLE PANEL (3 PANEL) ==================== -->
+        <article class="katalog-card" data-panel="3">
+          <div class="katalog-card-badge-row">
+            <span class="katalog-badge-pill">Layar Ekstra Lebar</span>
+            <span class="katalog-panel-chip">3 Panel P10</span>
+          </div>
+
+          <!-- Preview Image di Atas Deskripsi -->
+          <div class="katalog-image-container">
+            <img src="assets/looks/img/Preview Produk/Triple Display.png" alt="Kala.Clock Model 3 Panel (Triple Display)" class="katalog-product-img" loading="lazy" />
+          </div>
+
+          <div class="katalog-card-meta">
+            <h2 class="katalog-card-title">Triple Panel (3 Panel)</h2>
+            <p class="katalog-card-subtitle">Kala.Clock Model 3 Panel</p>
+            <div class="katalog-price-tag">
+              <span class="katalog-price-amount">Rp 935.000,00</span>
+              <span class="katalog-price-tax">/ unit</span>
+            </div>
+          </div>
+
+          <p class="katalog-desc-intro">
+            Jam Digital IoT dengan pengaturan otomatis lewat hp dan internet dengan berbagai fitur:
+          </p>
+
+                    <ol class="katalog-feature-list">
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">1</span>
+              <span class="teks"><strong>4 Mode Jam</strong> (Kiri, Kanan, Statis, dan Jam + Teks Berjalan).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">2</span>
+              <span class="teks"><strong>Siaran terjadwal</strong> dengan 10 slot jadwal beserta waktu mulai dan berakhirnya jadwal.</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">3</span>
+              <span class="teks"><strong>Mode Hemat daya</strong> (Jam akan diredupkan dari waktu awal sampai diterangkan kembali pada waktu selesai yang ditentukan).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">4</span>
+              <span class="teks"><strong>Night Mode</strong> (Jam akan dimatikan sementara waktu dari waktu awal sampai dihidupkan kembali pada waktu selesai yang ditentukan).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">5</span>
+              <span class="teks"><strong>Kecerahan fleksibel</strong> bisa diatur dari gelap (0) sampai terang (255).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">6</span>
+              <span class="teks"><strong>Kecepatan scroll teks</strong> bisa diatur dari cepat (10ms) sampai super lambat (100ms).</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">7</span>
+              <span class="teks"><strong>Kalibrasi Waktu presisi</strong> beserta pemilihan zona waktu dari WIB, WITA, dan WIT.</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">8</span>
+              <spa class="teks"><strong>Waktu sholat &amp; pengingat sholat</strong> secara offline yang akan otomatis mengatur kembali setiap hari.</span>
+            </li>
+            <li class="katalog-feature-item">
+              <span class="katalog-feature-num">9</span>
+              <span class="teks"><strong>3 Pilihan material casing</strong> jam (Filamen, Kayu, dan Aluminium/Besi).</span>
+            </li>
+          </ol>
+
+          <div class="katalog-card-footer">
+            <a href="https://digitalisasi.smkn2-bjm.sch.id/marketplace/produk/smart-teks-berjalan-iot-obbdmf" target="_blank" rel="noopener noreferrer" class="btn-beli-sekarang" title="Beli Triple Panel Sekarang di Marketplace Resmi">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="9" cy="21" r="1"></circle>
+                <circle cx="20" cy="21" r="1"></circle>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+              </svg>
+              <span>Beli Sekarang</span>
+            </a>
+          </div>
+        </article>
+
+      </div>
+
+      <!-- INDIKATOR DOTS CAROUSEL UNTUK MOBILE -->
+      <div class="carousel-dots" id="carouselDots" role="tablist" aria-label="Navigasi Slide Panel">
+        <button type="button" class="carousel-dot active" data-slide="0" role="tab" aria-selected="true" aria-label="Slide 1: Single Panel"></button>
+        <button type="button" class="carousel-dot" data-slide="1" role="tab" aria-selected="false" aria-label="Slide 2: Double Panel"></button>
+        <button type="button" class="carousel-dot" data-slide="2" role="tab" aria-selected="false" aria-label="Slide 3: Triple Panel"></button>
+      </div>
+
+      <!-- PETUNJUK GESER DI MOBILE -->
+      <div class="carousel-swipe-hint">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Geser kanan / kiri untuk membandingkan model panel</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </div>
+
+    </section>
+
+    <!-- SECTION PERBANDINGAN CEPAT UKURAN PANEL -->
+    <section class="katalog-compare-card">
+      <div class="katalog-compare-header">
+        <h3>Ringkasan Perbandingan Model Panel</h3>
+        <span class="katalog-badge-pill">Panduan Pembelian</span>
+      </div>
+
+      <div class="katalog-table-wrapper">
+        <table class="katalog-compare-table">
+          <thead>
+            <tr>
+              <th>Model Panel</th>
+              <th>Resolusi &amp; Panjang</th>
+              <th>Rekomendasi Ruangan</th>
+              <th>Pilihan Casing</th>
+              <th>Harga Resmi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Single Panel (1 Panel)</strong></td>
+              <td>32 &times; 16 cm (32 LED)</td>
+              <td>Kamar Tidur, Meja Belajar, Ruang Kerja Pribadi</td>
+              <td>Filamen, Kayu, Aluminium/Besi</td>
+              <td class="highlight-price">Rp 485.000,00</td>
+            </tr>
+            <tr>
+              <td><strong>Double Panel (2 Panel)</strong></td>
+              <td>64 &times; 16 cm (64 LED)</td>
+              <td>Ruang Tamu, Kantor, Toko, Koridor</td>
+              <td>Filamen, Kayu, Aluminium/Besi</td>
+              <td class="highlight-price">Rp 735.000,00</td>
+            </tr>
+            <tr>
+              <td><strong>Triple Panel (3 Panel)</strong></td>
+              <td>96 &times; 16 cm (96 LED)</td>
+              <td>Masjid, Aula, Lobi Gedung, Restoran Luas</td>
+              <td>Filamen, Kayu, Aluminium/Besi</td>
+              <td class="highlight-price">Rp 935.000,00</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- FOOTER KATALOG -->
+    <footer class="katalog-footer">
+      <p>&copy; 2026 Kala.Clock IoT — Karya Inovasi SMKN 2 Banjarmasin.</p>
+      <p>Pengiriman aman ke seluruh Indonesia melalui Marketplace Digitalisasi SMKN 2 Banjarmasin.</p>
+    </footer>
+
+  </div>
+
+  <!-- SCRIPT KATALOG JAVASCRIPT -->
+  <script src="assets/js/katalog.js?v=1.0.0"></script>
+</body>
+</html>
